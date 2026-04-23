@@ -1,0 +1,16 @@
+opencv-contrib-python>=4.8.0
+mediapipe==0.10.21
+torch>=2.5.1
+torchvision>=0.20.1
+numpy<2
+feetech-servo-sdk>=1.0.0,<2.0.0
+pybullet>=3.2.6
+
+# Install SAM2 from the official repo:
+# git clone https://github.com/facebookresearch/sam2.git
+# cd sam2
+# python -m pip install -e .
+
+# Optional for autonomous target selection:
+# rfdetr
+
