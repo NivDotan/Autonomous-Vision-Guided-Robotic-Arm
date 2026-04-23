@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Robot SAM2 Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f1117; color: #e0e0e0; font-family: monospace; }
+    #header { padding: 12px 20px; background: #1a1d26; border-bottom: 1px solid #2a2d3a;
+              display: flex; align-items: center; gap: 16px; }
+    #header h1 { font-size: 1.1rem; color: #7dd3fc; }
+    #status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+    #status-dot.connected { background: #22c55e; }
+    #main { display: grid; grid-template-columns: 1fr 320px; height: calc(100vh - 49px); }
+    #viz-pane { position: relative; overflow: hidden; }
+    #three-canvas { width: 100%; height: 100%; display: block; }
+    #overlay { position: absolute; top: 8px; left: 8px; font-size: 0.72rem;
+               background: rgba(0,0,0,0.55); padding: 8px 12px; border-radius: 6px;
+               line-height: 1.7; }
+    #panel { background: #1a1d26; border-left: 1px solid #2a2d3a;
+             padding: 16px; overflow-y: auto; }
+    #panel h2 { color: #7dd3fc; font-size: 0.85rem; margin-bottom: 10px; }
+    .joint-row { display: flex; justify-content: space-between;
+                 font-size: 0.78rem; padding: 3px 0; border-bottom: 1px solid #2a2d3a; }
+    .joint-bar { height: 4px; background: #2a2d3a; border-radius: 2px; margin: 4px 0 8px; }
+    .joint-fill { height: 100%; background: #7dd3fc; border-radius: 2px; transition: width 0.1s; }
+    #grasp-btn { width: 100%; margin-top: 16px; padding: 10px; background: #2563eb;
+                 color: #fff; border: none; border-radius: 6px; cursor: pointer;
+                 font-size: 0.85rem; font-family: monospace; }
+    #grasp-btn:hover { background: #1d4ed8; }
+    #log { margin-top: 12px; font-size: 0.7rem; color: #94a3b8;
+           max-height: 180px; overflow-y: auto; }
+    #log div { padding: 2px 0; border-bottom: 1px solid #1e2130; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div id="status-dot"></div>
+    <h1>Robot SAM2 — Live Dashboard</h1>
+    <span id="hz-label" style="color:#94a3b8;font-size:0.78rem;"></span>
+  </div>
+
+  <div id="main">
+    <div id="viz-pane">
+      <canvas id="three-canvas"></canvas>
+      <div id="overlay">
+        Mode: <span id="ov-mode">—</span><br>
+        Motors: <span id="ov-motors">OFF</span><br>
+        Tracking: <span id="ov-tracking">—</span><br>
+        Grasp quality: <span id="ov-quality">—</span>
+      </div>
+    </div>
+
+    <div id="panel">
+      <h2>Joint Ticks</h2>
+      <div id="joint-list"></div>
+      <button id="grasp-btn">Click Canvas to Grasp</button>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- Three.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js"></script>
+  <script src="controls.js"></script>
+  <script src="robot_viz.js"></script>
+</body>
+</html>

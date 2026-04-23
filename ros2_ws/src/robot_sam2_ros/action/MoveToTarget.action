@@ -1,0 +1,14 @@
+# Goal
+GraspCommand grasp
+---
+# Result
+bool success
+string message
+float32[6] final_joint_rad    # final joint angles in radians
+float32[3] final_position     # EE position achieved (metres, base frame)
+---
+# Feedback
+string phase          # "PLANNING" | "COLLISION_CHECK" | "MOVING" | "GRASPING" | "DONE"
+float32 progress      # 0.0 .. 1.0
+int32 waypoint_index
+int32 total_waypoints

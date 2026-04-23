@@ -1,0 +1,64 @@
+# Build artifacts
+build/
+*.pyd
+*.pdb
+*.exp
+*.lib
+*.dll
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+*.egg
+.env
+.venv/
+env/
+
+# Model weights (large binary files)
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Data / outputs
+data/
+dataset_raw/
+outputs/
+runs/
+results/
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+*.npy
+*.npz
+
+# Calibration / home position files (machine-specific)
+home_data.json
+StartHelloPos.json
+joint_sim_calibration.json
+so101_simple_sim.urdf
+
+# External libraries (not our code)
+lerobot/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

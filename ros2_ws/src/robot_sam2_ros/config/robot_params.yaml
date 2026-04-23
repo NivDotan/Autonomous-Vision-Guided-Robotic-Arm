@@ -1,0 +1,15 @@
+hardware_node:
+  ros__parameters:
+    use_daemon: false
+
+kinematics_node:
+  ros__parameters:
+    v_max_cart: 0.10       # m/s Cartesian speed limit
+    v_max_joint: 1.5       # rad/s joint speed limit
+    a_max_joint: 3.0       # rad/s² joint acceleration limit
+    pre_grasp_offset_m: 0.08
+
+vision_node:
+  ros__parameters:
+    seg_every_n_frames: 2
+    approach_threshold: 95000
