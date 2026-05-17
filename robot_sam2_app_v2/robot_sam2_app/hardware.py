@@ -96,6 +96,17 @@ class FeetechHardware:
         except Exception:
             pass
 
+    def set_torque(self, enabled: bool, motor_ids: list[int] | None = None) -> None:
+        if self.bus is None:
+            return
+        ids = motor_ids if motor_ids is not None else list(MOTOR_IDS)
+        val = 1 if enabled else 0
+        for mid in ids:
+            try:
+                self.bus.write("Torque_Enable", f"motor_{mid}", val, normalize=False)
+            except Exception as exc:
+                print(f"[HW] set_torque motor_{mid} failed: {exc}")
+
     def gripper_load_detected(self) -> bool:
         if self.bus is None:
             return False
@@ -201,15 +212,32 @@ class DaemonHardware:
     def write_goal_velocity(self, motor_name: str, velocity: int) -> None:
         pass  # daemon protocol doesn't expose Goal_Velocity — silently ignored
 
+    def set_torque(self, enabled: bool, motor_ids: list[int] | None = None) -> None:
+        print(f"[HW] set_torque({'ON' if enabled else 'OFF'}) — daemon mode: stop sending commands to free motors")
+
     def gripper_load_detected(self) -> bool:
         if self._socket is None:
             return False
         try:
+            from . import config as cfg
             self._socket.send(self._msgpack.packb({"cmd": 0x03}))
             resp = self._msgpack.unpackb(self._socket.recv(), raw=False)
+            raw_load = resp.get("load", resp.get(b"load", None))
+            if raw_load is not None:
+                return int(raw_load) > cfg.GRIP_LOAD_THRESHOLD
             return bool(resp.get("detected", False))
         except Exception:
             return False
+
+    def read_gripper_load_raw(self) -> dict:
+        """Debug: returns the full daemon response for cmd 0x03."""
+        if self._socket is None:
+            return {"error": "not connected"}
+        try:
+            self._socket.send(self._msgpack.packb({"cmd": 0x03}))
+            return self._msgpack.unpackb(self._socket.recv(), raw=False)
+        except Exception as e:
+            return {"error": str(e)}
 
 
 def make_hardware(use_daemon: bool = False, **kwargs):

@@ -27,7 +27,23 @@ class RobotState:
     trajectory_index: int = 0
 
     # ── VL53 sensor approach ─────────────────────────────────────────────────
-    vl53_controls_elbow: bool = False  # True while sensor is driving the elbow
+    vl53_controls_elbow: bool = False
+    vl53_dist_mm: int | None = None
+    arm_locked: bool = False      # True when VL53 < LOCK_DIST — freeze all except palm
+    pre_grasp_palm: bool = False  # True while palm adjusts before gripper closes
+    is_centered: bool = False
+
+    # ── Grip retry state machine ──────────────────────────────────────────────
+    retreat_mode: bool = False
+    pre_approach_ticks: dict = field(default_factory=dict)
+    gripper_closed_frames: int = 0
+    grip_attempt: int = 0
+    current_aim_x: float | None = None
+    current_aim_y: float | None = None
+
+    # ── Local grip retry (up / closer) ───────────────────────────────────────
+    grip_local_retry: bool = False   # True while waiting for small adjustment to settle
+    grip_local_attempt: int = 0      # 0-2 = up tries, 3 = closer try
 
     # ── 3D grasping (Tier 1) ─────────────────────────────────────────────────
     grasp_pose: object = None   # vision.grasp_planner.GraspPose3D | None

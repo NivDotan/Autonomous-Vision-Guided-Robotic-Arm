@@ -33,7 +33,8 @@ class MotionController:
         status = "OBJECT TRACKING"
         if state.approach_mode and not state.object_reached:
             status = "APPROACHING..." if centered else "CENTERING..."
-            if centered:
+            if centered and not state.vl53_controls_elbow:
+                # Sensor takes over elbow when active — camera only centers base/shoulder
                 d_elbow = -int(cfg.K_ELBOW) * cfg.ELBOW_DIR
                 compensation = d_elbow * cfg.SHOULDER_COMPENSATION_RATIO * cfg.SHOULDER_DIR
                 d_shoulder -= int(compensation)
@@ -42,7 +43,8 @@ class MotionController:
 
         state.target["base"] = int(clamp(state.curr["base"] + d_base, 1000, 3000))
         state.target["shoulder"] = int(clamp(state.curr["shoulder"] + d_shoulder, cfg.SH_MIN, cfg.SH_MAX))
-        state.target["elbow"] = int(clamp(state.curr["elbow"] + d_elbow, cfg.EL_MIN, cfg.EL_MAX))
+        if not state.vl53_controls_elbow:
+            state.target["elbow"] = int(clamp(state.curr["elbow"] + d_elbow, cfg.EL_MIN, cfg.EL_MAX))
         return status
 
     def update_from_hand(self, state: RobotState, results) -> str:
@@ -80,9 +82,16 @@ class MotionController:
         state.target["palm"] = int(clamp(target, cfg.PALM_MIN, cfg.PALM_MAX))
 
 
-def draw_overlay(frame, status: str, state: RobotState, target_name: str) -> None:
+def draw_overlay(frame, status: str, state: RobotState, target_name: str,
+                 vl53_dist_mm: int | None = None) -> None:
     cv2.putText(frame, f"Status: {status}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     cv2.putText(frame, f"Palm: {'AUTO' if state.auto_palm else 'MANUAL'}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 200, 0), 2)
     ctrl = "SIM JOG" if state.sim_jog_active else "vision"
     cv2.putText(frame, f"Arm ctrl: {ctrl}", (20, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (180, 180, 255), 2)
     cv2.putText(frame, f"RF-DETR: {target_name}", (20, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (80, 220, 255), 2)
+
+    if vl53_dist_mm is not None:
+        dist_cm = vl53_dist_mm / 10.0
+        label = f"VL53: {dist_cm:.1f} cm"
+        color = (0, 255, 255) if dist_cm > 5 else (0, 80, 255)  # yellow → red when very close
+        cv2.putText(frame, label, (20, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
