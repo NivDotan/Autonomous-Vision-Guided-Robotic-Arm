@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Read(//c/Users/niv/**)",
+      "Bash(python tests/test_visual_servo.py)",
+      "Bash(git add *)"
+    ]
+  }
+}
