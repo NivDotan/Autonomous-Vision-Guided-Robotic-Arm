@@ -126,10 +126,11 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 |-----|--------|
 | S | Enable/disable motors |
 | M | Toggle HAND / OBJECT mode |
-| A | Toggle approach mode (must have object tracked) |
+| A | Toggle approach mode (must have object tracked) — also disables base cam motor control |
 | Space | Manual gripper open/close |
 | R | Reset to home (smooth 5 s move) |
 | Arrow keys | Jog base (←→) / shoulder (↑↓) — works before S |
+| B | Toggle base camera motor control (drives base motor from base camera tracking) |
 | F | Free-arm mode (low resistance, motors off) |
 | Z / X | Palm up / down (manual) |
 | C | Auto-palm on |
@@ -138,6 +139,18 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 | J | Toggle PyBullet sim jog |
 | L | Start/stop data logging |
 | Q | Go home and quit |
+
+---
+
+## Base camera workflow
+
+1. App opens two windows: **Robot Brain** (main camera, index 1) and **Base Camera** (index 0).
+2. Click on the object in the **Base Camera** window → SAM2 initializes tracking there.
+3. Press **B** → base motor follows the object horizontally to center it in frame.
+4. Once the object is visible in the main camera, press **M** then click in **Robot Brain** to track, then **A** to approach.
+   - Pressing **A** automatically disables **B** so IBVS takes over the base motor.
+5. `BASE_CAM_K_BASE = 140` controls how fast the base rotates; `BASE_CAM_DEADBAND_X = 0.08` is the dead zone.
+6. Set `BASE_CAM_ENABLED = False` in config.py to skip the second camera entirely.
 
 ---
 

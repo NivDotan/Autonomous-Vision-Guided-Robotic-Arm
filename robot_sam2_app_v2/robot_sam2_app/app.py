@@ -35,6 +35,15 @@ class RobotApp:
         from .tracking import TrackingResult
         self._last_tracking = TrackingResult(False)
 
+        # ── Base camera (wide view → drives base motor) ───────────────────────
+        self.base_cap: cv2.VideoCapture | None = None
+        self.base_tracker: ObjectTracker | None = None
+        self.base_cam_active = False   # True = base cam controls base motor
+        self.base_frame_index = 0
+        if cfg.BASE_CAM_ENABLED:
+            self.base_cap = cv2.VideoCapture(cfg.BASE_CAMERA_INDEX)
+            self.base_tracker = ObjectTracker()
+
         from .data_logger import DataLogger
         self.logger = DataLogger(cfg.PROJECT_ROOT / "logs", hardware=self.hardware)
 
@@ -113,8 +122,14 @@ class RobotApp:
         print("Controls: S motors, M mode, A approach, Space grab/release, U auto cup, T typed target")
         print("          R reset home, L log start/stop, F free-arm mode, Z/X manual palm, C auto palm, Q quit")
         print("          Arrow keys: Left/Right = rotate base, Up/Down = shoulder (works before S)")
+        print("          B: toggle base-camera motor control  (click Base Camera window to track)")
         cv2.namedWindow("Robot Brain")
         cv2.setMouseCallback("Robot Brain", self._on_mouse)
+        _base_cam_open = (self.base_cap is not None and self.base_cap.isOpened())
+        if _base_cam_open:
+            cv2.namedWindow("Base Camera")
+            cv2.setMouseCallback("Base Camera", self._on_base_mouse)
+            print(f"Base camera ready (index {cfg.BASE_CAMERA_INDEX}). Click window to track. Press B to drive base motor.")
 
         with self.mp_hands.Hands(min_detection_confidence=0.6) as hands:
             while self.cap.isOpened():
@@ -163,6 +178,20 @@ class RobotApp:
                 draw_overlay(frame, status, self.state, self.auto_target_name, dist)
 
                 cv2.imshow("Robot Brain", frame)
+
+                # ── Base camera window ────────────────────────────────────────
+                if _base_cam_open:
+                    base_ok, base_frame = self.base_cap.read()
+                    if base_ok:
+                        base_frame = cv2.flip(base_frame, 1)
+                        bh, bw = base_frame.shape[:2]
+                        base_tracking = self.base_tracker.process(
+                            base_frame, self.segmenter, self.base_frame_index, False)
+                        self._update_base_camera(base_tracking, bw)
+                        self._draw_base_overlay(base_frame, base_tracking, bw)
+                        cv2.imshow("Base Camera", base_frame)
+                        self.base_frame_index += 1
+
                 raw_key = cv2.waitKey(5)
                 key = raw_key & 0xFF
                 if key == ord("q"):
@@ -232,11 +261,47 @@ class RobotApp:
         if self.vl53 is not None:
             self.vl53.disconnect()
         self.cap.release()
+        if self.base_cap is not None:
+            self.base_cap.release()
         cv2.destroyAllWindows()
 
     def _on_mouse(self, event, x, y, flags, param) -> None:
         if event == cv2.EVENT_LBUTTONDOWN and self.state.tracking_mode == "OBJECT":
             self.tracker.request_click(x, y)
+
+    def _on_base_mouse(self, event, x, y, flags, param) -> None:
+        if event == cv2.EVENT_LBUTTONDOWN and self.base_tracker is not None:
+            self.base_tracker.request_click(x, y)
+            print(f"[BASE CAM] tracking requested at ({x}, {y})")
+
+    def _update_base_camera(self, base_tracking, base_w: int) -> None:
+        """Drive base motor from base camera horizontal error."""
+        if not self.base_cam_active or not base_tracking.success:
+            return
+        if not self.state.motors_enabled or not self.hardware.connected:
+            return
+        if self.state.approach_mode or self.state.retreat_mode:
+            return  # IBVS takes priority once approach starts
+        err_x = (base_w / 2 - base_tracking.center_x) / base_w
+        if abs(err_x) < cfg.BASE_CAM_DEADBAND_X:
+            return
+        d_base = int(err_x * cfg.BASE_CAM_K_BASE)
+        self.state.target["base"] = int(clamp(
+            self.state.curr["base"] + d_base, 1000, 3000))
+
+    def _draw_base_overlay(self, frame, base_tracking, base_w: int) -> None:
+        color = (0, 200, 0) if self.base_cam_active else (180, 180, 180)
+        label = "BASE CAM [B]  " + ("MOTOR ON" if self.base_cam_active else "motor off")
+        cv2.putText(frame, label, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, color, 2)
+        if base_tracking.success:
+            # Centre line to show horizontal error
+            cx = base_tracking.center_x
+            mid = base_w // 2
+            cv2.line(frame, (mid, 0), (mid, frame.shape[0]), (100, 100, 100), 1)
+            cv2.line(frame, (cx, 0), (cx, frame.shape[0]), (0, 255, 255), 1)
+            err_pct = int((mid - cx) / base_w * 100)
+            cv2.putText(frame, f"err {err_pct:+d}%", (10, 56),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1)
             self.state.object_reached = False
 
     def _update_vision(self, results, frame, width: int, height: int) -> str:
@@ -458,6 +523,7 @@ class RobotApp:
                     self.state.current_aim_x  = cfg.APPROACH_AIM_X
                     self.state.current_aim_y  = cfg.APPROACH_AIM_Y
                     self.state.retreat_mode   = False
+                    self.base_cam_active      = False  # IBVS takes over base motor
                 print(f"Approach {'ON' if self.state.approach_mode else 'OFF'}")
         elif key == ord(" "):
             self.state.gripper_closed = not self.state.gripper_closed
@@ -514,6 +580,10 @@ class RobotApp:
             self.state.target["palm"] = int(clamp(self.state.target["palm"] - 50, cfg.PALM_MIN, cfg.PALM_MAX))
         elif key == ord("c"):
             self.state.auto_palm = True
+        elif key == ord("b"):
+            if self.base_cap is not None and self.base_cap.isOpened():
+                self.base_cam_active = not self.base_cam_active
+                print(f"Base cam motor control {'ON' if self.base_cam_active else 'OFF'}")
         elif key == ord("g"):
             self._request_3d_grasp()
 
