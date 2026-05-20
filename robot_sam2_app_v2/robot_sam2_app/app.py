@@ -185,12 +185,16 @@ class RobotApp:
                     if base_ok:
                         base_frame = cv2.flip(base_frame, 1)
                         bh, bw = base_frame.shape[:2]
-                        base_tracking = self.base_tracker.process(
-                            base_frame, self.segmenter, self.base_frame_index, False)
-                        self._update_base_camera(base_tracking, bw)
+                        if not self.state.approach_mode and not self.state.retreat_mode:
+                            base_tracking = self.base_tracker.process(
+                                base_frame, self.segmenter, self.base_frame_index, False)
+                            self._update_base_camera(base_tracking, bw)
+                            self.base_frame_index += 1
+                        else:
+                            from .tracking import TrackingResult as _TR
+                            base_tracking = _TR(False)
                         self._draw_base_overlay(base_frame, base_tracking, bw)
                         cv2.imshow("Base Camera", base_frame)
-                        self.base_frame_index += 1
 
                 raw_key = cv2.waitKey(5)
                 key = raw_key & 0xFF
