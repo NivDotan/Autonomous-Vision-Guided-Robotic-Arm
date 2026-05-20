@@ -104,6 +104,8 @@ _update_base_camera()
 - `motors_enabled = True`
 - `approach_mode = False` (IBVS takes over when approach starts — pressing A auto-disables B)
 
+**GPU pause during approach**: when `approach_mode` or `retreat_mode` is True, `base_tracker.process()` is skipped entirely — no SAM2 re-init, no CSRT update. The Base Camera window still shows the live feed but the tracking overlay freezes. Resumes automatically when approach ends.
+
 ---
 
 ## Control Loop (per frame)

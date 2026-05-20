@@ -151,6 +151,7 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
    - Pressing **A** automatically disables **B** so IBVS takes over the base motor.
 5. `BASE_CAM_K_BASE = 140` controls how fast the base rotates; `BASE_CAM_DEADBAND_X = 0.08` is the dead zone.
 6. Set `BASE_CAM_ENABLED = False` in config.py to skip the second camera entirely.
+7. During `approach_mode` or `retreat_mode`, base camera SAM2/CSRT is paused automatically (GPU freed for main camera). Window still shows live feed with frozen overlay.
 
 ---
 
