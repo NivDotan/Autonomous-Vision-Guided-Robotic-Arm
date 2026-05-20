@@ -36,7 +36,7 @@ class RobotApp:
         self._last_tracking = TrackingResult(False)
 
         from .data_logger import DataLogger
-        self.logger = DataLogger(cfg.PROJECT_ROOT)
+        self.logger = DataLogger(cfg.PROJECT_ROOT / "logs", hardware=self.hardware)
 
         # ── Trajectory planning (Tier 1) ─────────────────────────────────────
         from .trajectory.planner import TrajectoryPlanner
@@ -66,6 +66,7 @@ class RobotApp:
             self.vl53 = VL53Sensor(cfg.VL53_PORT, cfg.VL53_BAUD)
 
     def setup(self) -> None:
+        self.logger.start()
         if self.vl53 is not None:
             self.vl53.connect()
         self.hardware.connect()
@@ -111,6 +112,7 @@ class RobotApp:
             return
         print("Controls: S motors, M mode, A approach, Space grab/release, U auto cup, T typed target")
         print("          R reset home, L log start/stop, F free-arm mode, Z/X manual palm, C auto palm, Q quit")
+        print("          Arrow keys: Left/Right = rotate base, Up/Down = shoulder (works before S)")
         cv2.namedWindow("Robot Brain")
         cv2.setMouseCallback("Robot Brain", self._on_mouse)
 
@@ -156,20 +158,17 @@ class RobotApp:
                         if ticks:
                             self.state.set_curr_and_target(ticks)
                             self.hardware.write_ticks(ticks)
-                self.logger.record(self.state, self._last_tracking, w, h, self.free_mode)
-                now = time.monotonic()
-                if not hasattr(self, '_load_dbg_t') or now - self._load_dbg_t >= 2.0:
-                    self._load_dbg_t = now
-                    if hasattr(self.hardware, 'read_gripper_load_raw'):
-                        print(f"[LOAD DBG] raw={self.hardware.read_gripper_load_raw()}")
+                self.logger.record(self.state, self._last_tracking, w, h, self.free_mode, dist)
+                self._print_grip_current()
                 draw_overlay(frame, status, self.state, self.auto_target_name, dist)
 
                 cv2.imshow("Robot Brain", frame)
-                key = cv2.waitKey(5) & 0xFF
+                raw_key = cv2.waitKey(5)
+                key = raw_key & 0xFF
                 if key == ord("q"):
                     self._go_home()
                     break
-                self._handle_key(key)
+                self._handle_key(key, raw_key)
                 self.frame_index += 1
 
         self.close()
@@ -200,6 +199,8 @@ class RobotApp:
                                                                      cfg.VL53_MAX_JUMP_MM):
             self.state.approach_mode = False
             self.state.is_frozen     = True
+            if hasattr(self.hardware, "reset_gripper_current_buffer"):
+                self.hardware.reset_gripper_current_buffer()
             new_palm = int(clamp(self.state.curr["palm"] + cfg.VL53_PREGRASP_PALM_DELTA,
                                  cfg.PALM_MIN, cfg.PALM_MAX))
             if abs(new_palm - self.state.curr["palm"]) >= 10:
@@ -217,8 +218,12 @@ class RobotApp:
         from .go_home_util import go_home
         self.state.gripper_closed = False
         go_home(self.hardware, self.state.home)
+        # Sync state to actual home position so proportional stepper doesn't override
+        home_ticks = home_ticks_to_state(self.state.home)
+        self.state.set_curr_and_target(home_ticks)
 
     def close(self) -> None:
+        self.logger.stop()
         if self.sim is not None:
             self.sim.disconnect()
         self.hardware.disconnect()
@@ -257,18 +262,6 @@ class RobotApp:
 
     def _handle_grip_state(self) -> str | None:
         if not self.state.gripper_closed:
-            # Local retry: waiting for adjustment to settle, then re-close
-            if self.state.grip_local_retry:
-                settled = all(
-                    abs(self.state.curr[n] - self.state.target[n]) <= cfg.SPEED_LIMIT * 2
-                    for n in ("shoulder", "elbow")
-                )
-                if settled:
-                    self.state.grip_local_retry      = False
-                    self.state.gripper_closed        = True
-                    self.state.gripper_closed_frames = 0
-                    self.state.target["gripper"]     = cfg.GRIPPER_CLOSE
-                return f"ADJUSTING {'UP' if self.state.grip_local_attempt <= cfg.GRIP_UP_MAX_TRIES else 'CLOSER'} ({self.state.grip_local_attempt})"
             return None
 
         if self.state.returning_home:
@@ -279,8 +272,7 @@ class RobotApp:
         if (self.state.gripper_closed_frames >= cfg.GRIP_LOAD_MIN_FRAMES and
                 self.hardware.gripper_load_detected()):
             print("Object caught. Returning home.")
-            self.state.returning_home    = True
-            self.state.grip_local_attempt = 0
+            self.state.returning_home = True
             self.tracker.reset()
             self.state.approach_mode  = False
             self.state.object_reached = False
@@ -296,51 +288,36 @@ class RobotApp:
             return "OBJECT CAUGHT - RETURNING HOME"
 
         if self.state.gripper_closed_frames > cfg.GRIP_CHECK_FRAMES:
-            print(f"[GRIP] frames={self.state.gripper_closed_frames} local_attempt={self.state.grip_local_attempt} max={cfg.GRIP_UP_MAX_TRIES}")
-            if self.state.grip_local_attempt <= cfg.GRIP_UP_MAX_TRIES:
-                self._start_local_retry()
-                return "MISS — ADJUSTING"
-            # All local retries exhausted → full retreat
-            print("[GRIP] all local retries done — full retreat")
-            self.state.grip_local_attempt = 0
+            print(f"[GRIP] miss — attempt {self.state.grip_attempt}/{cfg.MAX_GRIP_RETRIES}")
+            if self.state.grip_attempt >= cfg.MAX_GRIP_RETRIES:
+                print("[GRIP] all retries exhausted — going home")
+                self._go_home()
+                self.state.approach_mode = False
+                self.state.gripper_closed = False
+                self.state.retreat_mode = False
+                return "MISS — GIVING UP"
             self._start_retreat()
             return "MISS — RETREATING"
 
         return f"GRIPPING... ({self.state.gripper_closed_frames}/{cfg.GRIP_CHECK_FRAMES})"
 
-    def _start_local_retry(self) -> None:
-        attempt = self.state.grip_local_attempt
-        self.state.gripper_closed        = False
-        self.state.gripper_closed_frames = 0
-        self.state.target["gripper"]     = cfg.GRIPPER_OPEN
-        self.state.grip_local_retry      = True
-        self.state.grip_local_attempt    = attempt + 1
-
-        if attempt < cfg.GRIP_UP_MAX_TRIES:
-            self.state.target["shoulder"] = int(clamp(
-                self.state.curr["shoulder"] + cfg.GRIP_UP_SHOULDER_DELTA,
-                cfg.SH_MIN, cfg.SH_MAX))
-            print(f"Grip miss — moving UP (try {attempt + 1}/{cfg.GRIP_UP_MAX_TRIES})")
-        else:
-            self.state.target["elbow"] = int(clamp(
-                self.state.curr["elbow"] + cfg.GRIP_CLOSER_ELBOW_DELTA,
-                cfg.EL_MIN, cfg.EL_MAX))
-            print("Grip miss — moving CLOSER")
-
     def _start_retreat(self) -> None:
-        attempt = self.state.grip_attempt + 1
-        print(f"Grip miss #{attempt} — retreating to try new position")
+        self.state.grip_attempt         += 1
+        print(f"[GRIP] miss — retreating for attempt {self.state.grip_attempt}/{cfg.MAX_GRIP_RETRIES}")
         self.state.gripper_closed        = False
         self.state.is_frozen             = False
         self.state.approach_mode         = False
         self.state.retreat_mode          = True
         self.state.pre_grasp_palm        = False
+        self.state.arm_locked            = False
         self.state.gripper_closed_frames = 0
-        self.state.grip_attempt          = attempt
+        self.state.object_reached        = False
         self.state.target["gripper"]     = cfg.GRIPPER_OPEN
+        if hasattr(self.hardware, "reset_gripper_current_buffer"):
+            self.hardware.reset_gripper_current_buffer()
 
     def _update_retreat(self) -> str:
-        """Step motors back to pre-approach position, then pick next aim cell."""
+        """Step back to pre-approach position, then re-enable approach."""
         pre = self.state.pre_approach_ticks
         if not pre:
             self.state.retreat_mode = False
@@ -355,23 +332,12 @@ class RobotApp:
             for n in ("shoulder", "elbow")
         )
         if back:
-            self._pick_next_aim()
-        return f"RETREATING (attempt {self.state.grip_attempt}/{len(cfg.RETRY_AIM_SEQUENCE)})"
-
-    def _pick_next_aim(self) -> None:
-        seq = cfg.RETRY_AIM_SEQUENCE
-        attempt = self.state.grip_attempt
-        if attempt >= len(seq):
-            print("All positions tried — giving up.")
-            self.state.retreat_mode = False
-            return
-        aim = seq[attempt]
-        self.state.current_aim_x  = aim[0]
-        self.state.current_aim_y  = aim[1]
-        self.state.retreat_mode   = False
-        self.state.approach_mode  = True
-        self.state.object_reached = False
-        print(f"Retry #{attempt + 1}: aiming at X={aim[0]:.2f} Y={aim[1]:.2f} in frame")
+            print(f"[GRIP] back at pre-approach — re-approaching (attempt {self.state.grip_attempt}/{cfg.MAX_GRIP_RETRIES})")
+            self.state.retreat_mode   = False
+            self.state.approach_mode  = True
+            self.state.current_aim_x  = cfg.APPROACH_AIM_X
+            self.state.current_aim_y  = cfg.APPROACH_AIM_Y
+        return f"RETREATING (attempt {self.state.grip_attempt}/{cfg.MAX_GRIP_RETRIES})"
 
     def _update_sim(self) -> None:
         if self.sim is None:
@@ -421,7 +387,52 @@ class RobotApp:
         if self.state.motors_enabled and self.hardware.connected:
             self.hardware.write_ticks(self.state.curr)
 
-    def _handle_key(self, key: int) -> None:
+    _GRIP_PRINT_INTERVAL = 0.25  # seconds
+
+    def _print_grip_current(self) -> None:
+        if not self.state.gripper_closed:
+            return
+        now = time.monotonic()
+        if hasattr(self, '_grip_print_t') and now - self._grip_print_t < self._GRIP_PRINT_INTERVAL:
+            return
+        self._grip_print_t = now
+        _, current = self.hardware.read_gripper_state()
+        buf = list(self.hardware._current_buffer) if hasattr(self.hardware, '_current_buffer') else []
+        stable_window = (max(buf[-5:]) - min(buf[-5:])) if len(buf) >= 5 else None
+        print(f"[GRIP] current={current}  buf_last5={buf[-5:]}  spread={stable_window}  frames={self.state.gripper_closed_frames}")
+
+    # Windows OpenCV raw key values for arrow keys (no & 0xFF masking)
+    _KEY_LEFT  = 2424832
+    _KEY_RIGHT = 2555904
+    _KEY_UP    = 2490368
+    _KEY_DOWN  = 2621440
+    _JOG_STEP  = 80
+
+    def _jog_direct(self, axis: str, delta: int) -> None:
+        """Jog one axis immediately — works before motors are enabled."""
+        limits = {"base": (1000, 3000), "shoulder": (cfg.SH_MIN, cfg.SH_MAX)}
+        lo, hi = limits[axis]
+        new_val = int(clamp(self.state.curr[axis] + delta, lo, hi))
+        self.state.curr[axis]   = new_val
+        self.state.target[axis] = new_val
+        if self.hardware.connected:
+            self.hardware.write_ticks(self.state.curr)
+
+    def _handle_key(self, key: int, raw_key: int = -1) -> None:
+        # Arrow keys — jog base/shoulder without needing motors enabled
+        if raw_key == self._KEY_LEFT:
+            self._jog_direct("base", -self._JOG_STEP)
+            return
+        elif raw_key == self._KEY_RIGHT:
+            self._jog_direct("base", +self._JOG_STEP)
+            return
+        elif raw_key == self._KEY_UP:
+            self._jog_direct("shoulder", -self._JOG_STEP)
+            return
+        elif raw_key == self._KEY_DOWN:
+            self._jog_direct("shoulder", +self._JOG_STEP)
+            return
+
         if key == 255:
             return
         if key == ord("s"):
@@ -444,8 +455,6 @@ class RobotApp:
                 if self.state.approach_mode:
                     self.state.pre_approach_ticks = dict(self.state.curr)
                     self.state.grip_attempt       = 0
-                    self.state.grip_local_attempt = 0
-                    self.state.grip_local_retry   = False
                     self.state.current_aim_x  = cfg.APPROACH_AIM_X
                     self.state.current_aim_y  = cfg.APPROACH_AIM_Y
                     self.state.retreat_mode   = False

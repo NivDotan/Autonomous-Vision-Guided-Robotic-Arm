@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import deque
 from pathlib import Path
 
 from .config import (
@@ -107,6 +108,26 @@ class FeetechHardware:
             except Exception as exc:
                 print(f"[HW] set_torque motor_{mid} failed: {exc}")
 
+    def read_gripper_load(self) -> int | None:
+        if self.bus is None:
+            return None
+        try:
+            raw = abs(int(self.bus.read("Present_Load", "motor_6", normalize=False)))
+            return raw - 1024 if raw > 1024 else raw
+        except Exception:
+            return None
+
+    def read_gripper_current(self) -> int | None:
+        if self.bus is None:
+            return None
+        try:
+            return int(self.bus.read("Present_Current", "motor_6", normalize=False))
+        except Exception:
+            return None
+
+    def read_gripper_state(self) -> tuple[int | None, int | None]:
+        return self.read_gripper_load(), self.read_gripper_current()
+
     def gripper_load_detected(self) -> bool:
         if self.bus is None:
             return False
@@ -136,6 +157,7 @@ class DaemonHardware:
         self._endpoint = endpoint
         self._socket   = None
         self._ctx      = None
+        self._current_buffer: deque[int] = deque(maxlen=10)
 
     @property
     def connected(self) -> bool:
@@ -215,29 +237,58 @@ class DaemonHardware:
     def set_torque(self, enabled: bool, motor_ids: list[int] | None = None) -> None:
         print(f"[HW] set_torque({'ON' if enabled else 'OFF'}) — daemon mode: stop sending commands to free motors")
 
-    def gripper_load_detected(self) -> bool:
-        if self._socket is None:
-            return False
-        try:
-            from . import config as cfg
-            self._socket.send(self._msgpack.packb({"cmd": 0x03}))
-            resp = self._msgpack.unpackb(self._socket.recv(), raw=False)
-            raw_load = resp.get("load", resp.get(b"load", None))
-            if raw_load is not None:
-                return int(raw_load) > cfg.GRIP_LOAD_THRESHOLD
-            return bool(resp.get("detected", False))
-        except Exception:
-            return False
+    def reset_gripper_current_buffer(self) -> None:
+        self._current_buffer.clear()
 
-    def read_gripper_load_raw(self) -> dict:
-        """Debug: returns the full daemon response for cmd 0x03."""
+    def _call_cmd03(self) -> dict | None:
+        """One ZMQ call for cmd 0x03 — returns full response or None on error."""
         if self._socket is None:
-            return {"error": "not connected"}
+            return None
         try:
             self._socket.send(self._msgpack.packb({"cmd": 0x03}))
             return self._msgpack.unpackb(self._socket.recv(), raw=False)
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception:
+            return None
+
+    def read_gripper_state(self) -> tuple[int | None, int | None]:
+        """Returns (load, current) in one ZMQ call."""
+        resp = self._call_cmd03()
+        if resp is None:
+            return None, None
+        load = resp.get("load", resp.get(b"load", None))
+        curr = resp.get("current", resp.get(b"current", None))
+        return (int(load) if load is not None else None,
+                int(curr) if curr is not None else None)
+
+    def read_gripper_load(self) -> int | None:
+        load, _ = self.read_gripper_state()
+        return load
+
+    def read_gripper_current(self) -> int | None:
+        _, curr = self.read_gripper_state()
+        return curr
+
+    def gripper_load_detected(self) -> bool:
+        from . import config as cfg
+        resp = self._call_cmd03()
+        if resp is None:
+            return False
+        raw_curr = resp.get("current", resp.get(b"current", None))
+        if raw_curr is not None:
+            # Current-based detection: stable AND above threshold
+            current = int(raw_curr)
+            self._current_buffer.append(current)
+            if len(self._current_buffer) < cfg.CURRENT_STABLE_COUNT:
+                return False
+            last_n = list(self._current_buffer)[-cfg.CURRENT_STABLE_COUNT:]
+            stable = (max(last_n) - min(last_n)) <= cfg.CURRENT_STABLE_WINDOW
+            above  = min(last_n) > cfg.CURRENT_GRIP_THRESHOLD
+            return stable and above
+        # Fallback if daemon hasn't been rebuilt yet: use raw load
+        raw_load = resp.get("load", resp.get(b"load", None))
+        if raw_load is not None:
+            return int(raw_load) > cfg.GRIP_LOAD_THRESHOLD
+        return bool(resp.get("detected", False))
 
 
 def make_hardware(use_daemon: bool = False, **kwargs):

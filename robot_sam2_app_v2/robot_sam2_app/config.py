@@ -23,10 +23,13 @@ DEFAULT_TICKS = {
 }
 
 GRIPPER_OPEN = 3000
-GRIPPER_CLOSE = 1500
+GRIPPER_CLOSE = 2100
 GRIPPER_ROT_90_POS = 3750
 WRIST_CARRY_POS = 2048       # Wrist position after catching — rotate before going home
-GRIP_LOAD_THRESHOLD = 100
+GRIP_LOAD_THRESHOLD     = 100  # fallback: raw load units if current unavailable
+CURRENT_GRIP_THRESHOLD  = 50   # minimum motor current to consider gripper loaded (idle=0-6, no-grip=12-20, grip=87-102)
+CURRENT_STABLE_WINDOW   = 20   # max spread (max-min) across last N current readings
+CURRENT_STABLE_COUNT    = 5    # N consecutive readings that must all be stable + above
 
 SPEED_LIMIT = 25
 SHOULDER_DIR = -1
@@ -59,20 +62,10 @@ AIM_CELL_Y = 5.0/6.0   # 5/6 = center of bottom row
 APPROACH_AIM_X = 3.2 / 4#2.2 / 4
 APPROACH_AIM_Y = 2 / 4#1.2 / 4
 
-# Grip retry — fallback sequence of (aim_x, aim_y) tried after each miss
-RETRY_AIM_SEQUENCE = [
-    (2.5/4, 2.7/4),   # attempt 1 — primary
-    (2.5/4, 1.8/4),   # attempt 2 — higher
-    (2.5/4, 3.2/4),   # attempt 3 — lower
-    (1.8/4, 2.7/4),   # attempt 4 — left
-    (3.2/4, 2.7/4),   # attempt 5 — right
-]
+MAX_GRIP_RETRIES     = 3   # re-approach attempts before giving up (4 total tries)
 GRIP_CHECK_FRAMES    = 25  # frames after close before declaring miss (~1 sec at 25fps)
 GRIP_LOAD_MIN_FRAMES = 10  # min frames before checking load (avoids motor-torque false positive)
 RETREAT_TOLERANCE    = 30  # ticks — close enough to pre-approach position
-GRIP_UP_SHOULDER_DELTA = -60   # Shoulder ticks per "up" retry (negative = lifts arm)
-GRIP_CLOSER_ELBOW_DELTA = -40  # Elbow ticks for "closer" retry (negative = extends)
-GRIP_UP_MAX_TRIES = 3          # Up attempts before switching to "closer"
 
 SAM2_CHECKPOINT = r"E:/sam2.1_hiera_tiny.pt"
 SAM2_MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"

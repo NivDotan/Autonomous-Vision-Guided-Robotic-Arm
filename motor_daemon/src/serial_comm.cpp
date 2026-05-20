@@ -23,6 +23,7 @@ static constexpr uint8_t INST_SYNC_READ  = 0x82;
 static constexpr uint8_t REG_GOAL_POS         = 42;  // 2 bytes, little-endian
 static constexpr uint8_t REG_PRESENT_POS      = 56;  // 2 bytes
 static constexpr uint8_t REG_PRESENT_LOAD     = 60;  // 2 bytes
+static constexpr uint8_t REG_PRESENT_CURRENT  = 69;  // 2 bytes
 
 // ── Platform-specific serial I/O ─────────────────────────────────────────────
 
@@ -268,7 +269,7 @@ bool SerialComm::sync_write_positions(const std::array<int, 6>& ids, const Ticks
     return true;
 }
 
-// ── Read gripper load ────────────────────────────────────────────────────────
+// ── Read gripper load / current ──────────────────────────────────────────────
 
 int16_t SerialComm::read_load(int motor_id) {
     if (sim_mode_) return sim_load_[5];
@@ -298,4 +299,31 @@ int16_t SerialComm::read_load(int motor_id) {
     int16_t raw = static_cast<int16_t>(resp[5] | (resp[6] << 8));
     // Convert: if raw > 1024, subtract 1024 to get signed load.
     return (raw > 1024) ? raw - 1024 : raw;
+}
+
+int16_t SerialComm::read_current(int motor_id) {
+    if (sim_mode_) return 0;
+
+    uint8_t pkt[8];
+    pkt[0] = HEADER;
+    pkt[1] = HEADER;
+    pkt[2] = static_cast<uint8_t>(motor_id);
+    pkt[3] = 4;
+    pkt[4] = INST_READ;
+    pkt[5] = REG_PRESENT_CURRENT;
+    pkt[6] = 2;
+    pkt[7] = checksum(pkt + 2, 5);
+
+#ifdef _WIN32
+    serial_write(handle_, pkt, 8);
+    uint8_t resp[8];
+    int got = serial_read(handle_, resp, 8);
+#else
+    serial_write(fd_, pkt, 8);
+    uint8_t resp[8];
+    int got = serial_read(fd_, resp, 8);
+#endif
+
+    if (got < 8 || resp[0] != HEADER || resp[1] != HEADER) return 0;
+    return static_cast<int16_t>(resp[5] | (resp[6] << 8));
 }
