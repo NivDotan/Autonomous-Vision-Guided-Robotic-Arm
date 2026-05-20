@@ -10,6 +10,12 @@ ASSETS_DIR = PACKAGE_DIR / "assets"
 
 PORT = "COM4"
 CAMERA_INDEX = 1     # 0 = first camera, 1 = second camera, etc.
+
+# ── Base camera (wide-view, drives base motor) ────────────────────────────────
+BASE_CAM_ENABLED    = True   # Set False to skip
+BASE_CAMERA_INDEX   = 0      # cv2.VideoCapture index for the base/overview camera
+BASE_CAM_K_BASE     = 140    # gain: base motor ticks per unit horizontal error
+BASE_CAM_DEADBAND_X = 0.08   # fraction of frame width to ignore (dead zone)
 MOTOR_NAMES = ("base", "shoulder", "elbow", "palm", "wrist", "gripper")
 MOTOR_IDS = (1, 2, 3, 4, 5, 6)
 

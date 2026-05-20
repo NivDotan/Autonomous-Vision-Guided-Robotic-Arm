@@ -7,18 +7,20 @@ The camera sees the scene, SAM2 segments the target object, IBVS drives the arm
 toward it, and a VL53L1X distance sensor gates the final grip.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                     Hardware                         │
-│  Webcam ──► Python App   VL53L1X (ESP32/COM3)        │
-│  (index 1)     │              │                      │
-│                ▼              ▼                      │
-│          ZMQ REQ          Serial thread              │
-│                │                                     │
-│          motor_daemon.exe (C++, 200 Hz, COM4)        │
-│                │                                     │
-│    6× Feetech STS3215 (base/shoulder/elbow/          │
-│                         palm/wrist/gripper)          │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                        Hardware                          │
+│  Base cam (idx 0) ──► Python App ◄── Main cam (idx 1)   │
+│  wide view, drives base  │       approach / SAM2 track  │
+│                          │                              │
+│                    VL53L1X (ESP32/COM3)                  │
+│                          │                              │
+│                      ZMQ REQ                            │
+│                          │                              │
+│              motor_daemon.exe (C++, 200 Hz, COM4)        │
+│                          │                              │
+│       6× Feetech STS3215 (base/shoulder/elbow/           │
+│                            palm/wrist/gripper)           │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -46,6 +48,12 @@ toward it, and a VL53L1X distance sensor gates the final grip.
 
 Single-process event loop at ~25 fps driven by `cv2.waitKey(5)`.
 
+Opens two windows:
+- **Robot Brain** — main camera (index 1), full approach pipeline
+- **Base Camera** — overview camera (index 0), SAM2 tracks object, drives base motor left/right to center it before approach
+
+Both share one SAM2Segmenter instance (each `segment_bbox` call is stateless).
+
 ---
 
 ## Module Map
@@ -68,6 +76,33 @@ vision/
   grasp_planner.py      3D grasp pose from depth mask
   scene_3d.py           Camera→base coordinate transform (hand-eye calib)
 ```
+
+---
+
+## Base Camera Pipeline
+
+```
+Base cam (index 0) frame
+    │
+    ▼
+base_tracker.process()  ← SAM2 init on click, CSRT per frame
+    │  → base_tracking: center_x, success
+    ▼
+_update_base_camera()
+    │  err_x = (frame_w/2 − center_x) / frame_w
+    │  if |err_x| > BASE_CAM_DEADBAND_X (0.08):
+    │      state.target["base"] += err_x × BASE_CAM_K_BASE (140)
+    ▼
+"Base Camera" window with overlay:
+    │  grey vertical line = frame center
+    │  yellow vertical line = object center
+    │  err % printed top-left
+```
+
+**B** key toggles base cam motor control. Active only when:
+- `base_cam_active = True`
+- `motors_enabled = True`
+- `approach_mode = False` (IBVS takes over when approach starts — pressing A auto-disables B)
 
 ---
 
