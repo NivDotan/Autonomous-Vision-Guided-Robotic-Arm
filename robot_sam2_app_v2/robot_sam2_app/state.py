@@ -41,10 +41,6 @@ class RobotState:
     current_aim_x: float | None = None
     current_aim_y: float | None = None
 
-    # ── Local grip retry (up / closer) ───────────────────────────────────────
-    grip_local_retry: bool = False   # True while waiting for small adjustment to settle
-    grip_local_attempt: int = 0      # 0-2 = up tries, 3 = closer try
-
     # ── 3D grasping (Tier 1) ─────────────────────────────────────────────────
     grasp_pose: object = None   # vision.grasp_planner.GraspPose3D | None
 

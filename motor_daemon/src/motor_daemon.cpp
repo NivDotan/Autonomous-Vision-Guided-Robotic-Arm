@@ -27,8 +27,9 @@
 static std::mutex          g_mutex;
 static Ticks6              g_target{};
 static Ticks6              g_current{};
-static int16_t             g_gripper_load  = 0;
-static bool                g_gripper_catch = false;
+static int16_t             g_gripper_load    = 0;
+static int16_t             g_gripper_current = 0;
+static bool                g_gripper_catch   = false;
 static double              g_loop_hz       = 0.0;
 static std::atomic<bool>   g_running{true};
 
@@ -100,12 +101,14 @@ static void control_loop(SerialComm& serial) {
         // 5. Write goal positions.
         serial.sync_write_positions(MOTOR_IDS, goal);
 
-        // 6. Read gripper load and detect catch.
-        int16_t load = serial.read_load(MOTOR_IDS[GRIPPER_IDX]);
+        // 6. Read gripper load + current and detect catch.
+        int16_t load    = serial.read_load(MOTOR_IDS[GRIPPER_IDX]);
+        int16_t current = serial.read_current(MOTOR_IDS[GRIPPER_IDX]);
         {
             std::lock_guard<std::mutex> lk(g_mutex);
-            g_gripper_load  = load;
-            g_gripper_catch = (load > GRIP_LOAD_THRESHOLD);
+            g_gripper_load    = load;
+            g_gripper_current = current;
+            g_gripper_catch   = (load > GRIP_LOAD_THRESHOLD);
         }
 
         // 7. Track loop frequency.
@@ -161,15 +164,17 @@ static std::vector<uint8_t> handle_message(const uint8_t* data, size_t size) {
             break;
         }
         case DaemonCmd::GRIPPER_LOAD: {
-            int16_t load; bool catch_flag;
+            int16_t load; int16_t current; bool catch_flag;
             {
                 std::lock_guard<std::mutex> lk(g_mutex);
                 load       = g_gripper_load;
+                current    = g_gripper_current;
                 catch_flag = g_gripper_catch;
             }
-            pk.pack_map(3);
+            pk.pack_map(4);
             pk.pack(std::string("status"));   pk.pack(0);
             pk.pack(std::string("load"));     pk.pack(load);
+            pk.pack(std::string("current"));  pk.pack(current);
             pk.pack(std::string("detected")); pk.pack(catch_flag);
             break;
         }

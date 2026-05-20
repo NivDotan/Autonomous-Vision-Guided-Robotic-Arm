@@ -40,6 +40,9 @@ public:
     // Read Present_Load for one motor (gripper = motor_id 6).
     int16_t read_load(int motor_id);
 
+    // Read Present_Current for one motor (register 69, 2 bytes).
+    int16_t read_current(int motor_id);
+
 private:
     bool sim_mode_;
     Ticks6   sim_pos_;
