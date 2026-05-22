@@ -658,6 +658,7 @@ class RobotApp:
                 self.hardware.write_ticks(self.state.target)
                 print(f"[SCAN] step {step} sign {sign:+d} → base={new_base}")
                 self._wait_base_settle(new_base)
+                time.sleep(cfg.SCAN_DWELL_TIME)  # hold position so camera stabilises
                 ok, frame = self.cap.read()
                 if not ok:
                     continue

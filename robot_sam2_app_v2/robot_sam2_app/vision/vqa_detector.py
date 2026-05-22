@@ -51,7 +51,7 @@ class VQADetector:
             )
             boxes  = results[0]["boxes"]
             scores = results[0]["scores"]
-            mask   = scores > 0.3
+            mask   = scores > 0.75
             boxes  = boxes[mask]
             scores = scores[mask]
             if len(boxes) == 0:
