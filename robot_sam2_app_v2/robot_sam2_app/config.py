@@ -84,8 +84,8 @@ VQA_MODEL  = "IDEA-Research/grounding-dino-tiny"   # swap to grounding-dino-base
 VQA_DEVICE = "cuda"                                # "cpu" if VRAM is tight
 SCAN_STEP_TICKS     = 150   # base ticks per scan step
 SCAN_MAX_STEPS      = 4     # steps each direction (±4 × 150 = ±600 ticks max)
-SCAN_SETTLE_TIMEOUT = 1.5   # seconds to wait for base motor to reach each scan position
-SCAN_DWELL_TIME     = 2.0   # seconds to hold position after settling before capturing
+SCAN_MOVE_DURATION  = 1.2   # seconds for each scan move (parabolic ease-in/ease-out)
+SCAN_DWELL_TIME     = 2.0   # seconds to hold position after move before capturing
 
 SIM_INSTANT_WHEN_JOG = True
 #SIM_CALIBRATION_PATH = ASSETS_DIR / "joint_sim_calibration.json"
