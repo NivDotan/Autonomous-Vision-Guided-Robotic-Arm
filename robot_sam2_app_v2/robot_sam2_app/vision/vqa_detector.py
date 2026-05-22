@@ -17,6 +17,10 @@ class VQADetector:
         self._model = None
         self._processor = None
 
+    def load(self) -> None:
+        """Eagerly load the model — call at startup so T key has no warm-up delay."""
+        self._ensure_loaded()
+
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
