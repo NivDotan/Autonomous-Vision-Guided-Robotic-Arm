@@ -5,9 +5,10 @@ from PIL import Image
 
 
 class VQADetector:
-    """Florence-2 REFERRING_EXPRESSION_COMPREHENSION → (x0, y0, x1, y1) bbox.
+    """Grounding DINO → (x0, y0, x1, y1) bbox from natural-language description.
 
-    Lazy-loaded on first call to detect_bbox(). Uses ~0.8 GB VRAM (float16).
+    Lazy-loaded on first detect_bbox() call (~500 MB VRAM, float32).
+    Text prompt is auto-terminated with '.' as required by Grounding DINO.
     """
 
     def __init__(self, model_name: str, device: str = "cuda"):
@@ -19,13 +20,11 @@ class VQADetector:
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
-        from transformers import AutoModelForCausalLM, AutoProcessor
+        from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
         print(f"[VQA] Loading {self._model_name} …")
-        self._processor = AutoProcessor.from_pretrained(
-            self._model_name, trust_remote_code=True)
-        self._model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float16,
-            trust_remote_code=True).to(self._device).eval()
+        self._processor = AutoProcessor.from_pretrained(self._model_name)
+        self._model = AutoModelForZeroShotObjectDetection.from_pretrained(
+            self._model_name).to(self._device).eval()
         print(f"[VQA] {self._model_name} ready")
 
     def detect_bbox(self, frame_bgr, query: str) -> tuple[int, int, int, int] | None:
@@ -35,22 +34,27 @@ class VQADetector:
         self._ensure_loaded()
         try:
             image = Image.fromarray(frame_bgr[..., ::-1])  # BGR → RGB
-            task = "<REFERRING_EXPRESSION_COMPREHENSION>"
+            text = query.rstrip(".") + "."  # Grounding DINO requires period-terminated text
             inputs = self._processor(
-                text=task + query, images=image, return_tensors="pt",
-            ).to(self._device, torch.float16)
+                images=image, text=text, return_tensors="pt"
+            ).to(self._device)
             with torch.no_grad():
-                ids = self._model.generate(
-                    **inputs, max_new_tokens=64, do_sample=False, num_beams=3)
-            text_out = self._processor.batch_decode(ids, skip_special_tokens=False)[0]
-            parsed = self._processor.post_process_generation(
-                text_out, task=task, image_size=(image.width, image.height))
-            bboxes = parsed.get(task, {}).get("bboxes", [])
-            if not bboxes:
+                outputs = self._model(**inputs)
+            results = self._processor.post_process_grounded_object_detection(
+                outputs,
+                inputs.input_ids,
+                box_threshold=0.3,
+                text_threshold=0.25,
+                target_sizes=[image.size[::-1]],
+            )
+            boxes  = results[0]["boxes"]
+            scores = results[0]["scores"]
+            if len(boxes) == 0:
                 print(f"[VQA] '{query}' — nothing found")
                 return None
-            x0, y0, x1, y1 = (int(v) for v in bboxes[0])
-            print(f"[VQA] '{query}' → ({x0}, {y0}, {x1}, {y1})")
+            best = int(scores.argmax())
+            x0, y0, x1, y1 = (int(v) for v in boxes[best].tolist())
+            print(f"[VQA] '{query}' → ({x0}, {y0}, {x1}, {y1})  score={scores[best]:.2f}")
             return x0, y0, x1, y1
         except Exception as exc:
             print(f"[VQA] error: {exc}")

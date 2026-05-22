@@ -114,7 +114,7 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 
 - **Grip retry — retreat and reapproach** — miss → open gripper → reset current buffer → `retreat_mode=True` → step back to `pre_approach_ticks` → when arrived: `approach_mode=True` → re-approach from same start. Up to `MAX_GRIP_RETRIES=3` retreats (4 total attempts). After all retries: `_go_home()`. No local micro-adjustments (shoulder/elbow nudges) — those were removed.
 
-- **Florence-2 VQA replaces RF-DETR** — Press T, type a natural-language description ("the red cup on the left"), Florence-2 returns a single bbox, handed straight to `tracker.request_bbox()` → SAM2 → CSRT. Lazy-loaded on first T press (~0.8 GB VRAM, float16). `VQA_MODEL` in config.py controls which Florence-2 variant is used. Press U to re-run the last query without retyping.
+- **Grounding DINO replaces RF-DETR** — Press T, type a natural-language description ("the red cup on the left"), Grounding DINO tiny returns a single bbox (highest-confidence match), handed straight to `tracker.request_bbox()` → SAM2 → CSRT. Lazy-loaded on first T press (~500 MB VRAM). Text prompts are auto-terminated with `.` internally. `VQA_MODEL` in config.py controls the variant (`grounding-dino-base` for better accuracy). Press U to re-run the last query without retyping.
 
 - **Arrow key jog works before S** — `_jog_direct()` writes directly to hardware and syncs `state.curr + state.target` so the proportional stepper doesn't override it next frame. Requires daemon to be connected.
 
