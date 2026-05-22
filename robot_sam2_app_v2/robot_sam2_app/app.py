@@ -76,6 +76,7 @@ class RobotApp:
 
     def setup(self) -> None:
         self.logger.start()
+        self.detector.load()   # pre-load Grounding DINO so T key has no warm-up delay
         if self.vl53 is not None:
             self.vl53.connect()
         self.hardware.connect()
@@ -616,9 +617,53 @@ class RobotApp:
     def _request_auto_target(self, query: str) -> None:
         bbox = self.detector.detect_bbox(self.last_frame_bgr, query)
         if bbox is None:
+            bbox = self._scan_for_target(query)
+        if bbox is None:
+            print(f"[SCAN] '{query}' not found after full sweep")
             return
         self.auto_target_name = query
         self.state.tracking_mode  = "OBJECT"
         self.state.object_reached = False
         self.state.approach_mode  = False
         self.tracker.request_bbox(bbox)
+
+    def _scan_for_target(self, query: str) -> tuple | None:
+        """Sweep base motor right/left in increasing steps, detect on each new frame."""
+        if not self.hardware.connected:
+            return None
+        start_base = self.state.curr["base"]
+        print(f"[SCAN] Starting sweep for '{query}' from base={start_base}")
+        for step in range(1, cfg.SCAN_MAX_STEPS + 1):
+            for sign in (+1, -1):
+                new_base = int(clamp(
+                    start_base + sign * step * cfg.SCAN_STEP_TICKS, 1000, 3000))
+                self.state.target["base"] = new_base
+                self.hardware.write_ticks(self.state.target)
+                print(f"[SCAN] step {step} sign {sign:+d} → base={new_base}")
+                self._wait_base_settle(new_base)
+                ok, frame = self.cap.read()
+                if not ok:
+                    continue
+                frame = cv2.flip(frame, 1)
+                self.last_frame_bgr = frame.copy()
+                bbox = self.detector.detect_bbox(frame, query)
+                if bbox is not None:
+                    # Sync state so stepper doesn't fight the new position
+                    self.state.curr["base"] = new_base
+                    print(f"[SCAN] Found at base={new_base}")
+                    return bbox
+        # Restore start position
+        self.state.target["base"] = start_base
+        self.state.curr["base"]   = start_base
+        self.hardware.write_ticks(self.state.target)
+        return None
+
+    def _wait_base_settle(self, target: int) -> None:
+        """Block until base motor reaches target or timeout expires."""
+        deadline = time.monotonic() + cfg.SCAN_SETTLE_TIMEOUT
+        while time.monotonic() < deadline:
+            ticks = self.hardware.read_ticks()
+            if ticks and abs(ticks["base"] - target) < cfg.RETREAT_TOLERANCE:
+                self.state.curr["base"] = ticks["base"]
+                break
+            time.sleep(0.05)
