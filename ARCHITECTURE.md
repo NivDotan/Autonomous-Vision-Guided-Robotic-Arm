@@ -71,7 +71,8 @@ simulation.py       PyBulletArmSim — 3D visual sim, slider jog
 data_logger.py      CSV logger (motor ticks, tracking, VL53 each frame)
 vision/
   sam2_segmenter.py     SAM2.1 segmentation → bounding box
-  rfdetr_selector.py    RF-DETR detection → bbox for auto-aim
+  vqa_detector.py       Florence-2 VQA → bbox from natural-language description
+  rfdetr_selector.py    (legacy, not used — kept for reference)
   depth_perception.py   Intel RealSense D4xx aligned RGB+depth frames
   grasp_planner.py      3D grasp pose from depth mask
   scene_3d.py           Camera→base coordinate transform (hand-eye calib)
@@ -134,11 +135,18 @@ cap.read() / realsense.read_aligned()
 ## Vision Pipeline
 
 ```
-Click / RF-DETR bbox
+[Option A] User click on "Robot Brain" window
+    │
+    ├─[Option B] Press T → type description → Florence-2 VQA
+    │                (REFERRING_EXPRESSION_COMPREHENSION)
+    │                → (x0, y0, x1, y1) bbox
     │
     ▼
-SAM2Segmenter.segment_bbox()   (every SEG_EVERY_N_FRAMES frames, GPU)
-    │  → refines bbox from click point using SAM2.1 hiera-tiny
+tracker.request_click(x,y)  OR  tracker.request_bbox(xyxy)
+    │
+    ▼
+SAM2Segmenter.segment_bbox()   (on first eligible frame, GPU)
+    │  → refines bbox using SAM2.1 hiera-tiny, returns clean mask bbox
     ▼
 cv2.TrackerCSRT                 (every frame, CPU)
     │  → tracks bbox, returns center_x/y, area, width/height
@@ -155,6 +163,19 @@ MotionController.update_from_object()
     ▼
 state.target[] updated
 ```
+
+### Florence-2 VQA detector
+
+| Property | Value |
+|----------|-------|
+| Model | `microsoft/Florence-2-base` (configurable via `VQA_MODEL`) |
+| VRAM | ~0.8 GB (float16), lazy-loaded on first T press |
+| Task | `REFERRING_EXPRESSION_COMPREHENSION` |
+| Input | frame + natural-language description ("the red cup on the left") |
+| Output | single `(x0, y0, x1, y1)` bbox, handed to `tracker.request_bbox()` |
+| Speed | ~0.2–0.5 s per query (one-shot, not per-frame) |
+
+Press **U** to re-run with the last query. Swap `VQA_MODEL` to `microsoft/Florence-2-large` in config.py for better accuracy at ~1.5 GB VRAM cost.
 
 ---
 
