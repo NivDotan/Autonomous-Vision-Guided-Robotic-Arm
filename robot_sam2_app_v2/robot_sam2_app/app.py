@@ -624,8 +624,25 @@ class RobotApp:
         self.auto_target_name = query
         self.state.tracking_mode  = "OBJECT"
         self.state.object_reached = False
-        self.state.approach_mode  = False
         self.tracker.request_bbox(bbox)
+
+        # Auto S — enable motors and sync state to actual positions
+        if not self.state.motors_enabled:
+            self.state.motors_enabled = True
+            ticks = self.hardware.read_ticks()
+            if ticks:
+                self.state.set_curr_and_target(ticks)
+            print("Motors enabled (auto)")
+
+        # Auto A — start approach
+        self.state.approach_mode      = True
+        self.state.retreat_mode       = False
+        self.state.grip_attempt       = 0
+        self.state.pre_approach_ticks = dict(self.state.curr)
+        self.state.current_aim_x      = cfg.APPROACH_AIM_X
+        self.state.current_aim_y      = cfg.APPROACH_AIM_Y
+        self.base_cam_active          = False
+        print("Approach started (auto)")
 
     def _scan_for_target(self, query: str) -> tuple | None:
         """Sweep base motor right/left in increasing steps, detect on each new frame."""
