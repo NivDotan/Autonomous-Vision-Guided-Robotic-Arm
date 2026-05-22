@@ -164,18 +164,18 @@ MotionController.update_from_object()
 state.target[] updated
 ```
 
-### Florence-2 VQA detector
+### Grounding DINO detector
 
 | Property | Value |
 |----------|-------|
-| Model | `microsoft/Florence-2-base` (configurable via `VQA_MODEL`) |
-| VRAM | ~0.8 GB (float16), lazy-loaded on first T press |
-| Task | `REFERRING_EXPRESSION_COMPREHENSION` |
+| Model | `IDEA-Research/grounding-dino-tiny` (configurable via `VQA_MODEL`) |
+| VRAM | ~500 MB (float32), lazy-loaded on first T press |
 | Input | frame + natural-language description ("the red cup on the left") |
-| Output | single `(x0, y0, x1, y1)` bbox, handed to `tracker.request_bbox()` |
-| Speed | ~0.2–0.5 s per query (one-shot, not per-frame) |
+| Output | single `(x0, y0, x1, y1)` bbox (highest-confidence match) |
+| Speed | ~0.1–0.3 s per query (one-shot, not per-frame) |
 
-Press **U** to re-run with the last query. Swap `VQA_MODEL` to `microsoft/Florence-2-large` in config.py for better accuracy at ~1.5 GB VRAM cost.
+Text prompts are auto-terminated with `.` as required by Grounding DINO.
+Press **U** to re-run with the last query. Swap `VQA_MODEL` to `IDEA-Research/grounding-dino-base` in config.py for better accuracy.
 
 ---
 

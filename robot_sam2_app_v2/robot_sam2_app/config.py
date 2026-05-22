@@ -80,8 +80,8 @@ SEG_EVERY_N_FRAMES = 2
 DEFAULT_TARGET_CLASS = "cup"   # default query used by U key
 
 # ── Florence-2 VQA detector ───────────────────────────────────────────────────
-VQA_MODEL  = "microsoft/Florence-2-base"   # swap to Florence-2-large for better accuracy
-VQA_DEVICE = "cuda"                        # "cpu" if VRAM is tight
+VQA_MODEL  = "IDEA-Research/grounding-dino-tiny"   # swap to grounding-dino-base for better accuracy
+VQA_DEVICE = "cuda"                                # "cpu" if VRAM is tight
 
 SIM_INSTANT_WHEN_JOG = True
 #SIM_CALIBRATION_PATH = ASSETS_DIR / "joint_sim_calibration.json"
