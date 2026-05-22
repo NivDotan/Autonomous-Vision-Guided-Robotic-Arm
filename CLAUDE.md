@@ -114,6 +114,8 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 
 - **Grip retry — retreat and reapproach** — miss → open gripper → reset current buffer → `retreat_mode=True` → step back to `pre_approach_ticks` → when arrived: `approach_mode=True` → re-approach from same start. Up to `MAX_GRIP_RETRIES=3` retreats (4 total attempts). After all retries: `_go_home()`. No local micro-adjustments (shoulder/elbow nudges) — those were removed.
 
+- **Florence-2 VQA replaces RF-DETR** — Press T, type a natural-language description ("the red cup on the left"), Florence-2 returns a single bbox, handed straight to `tracker.request_bbox()` → SAM2 → CSRT. Lazy-loaded on first T press (~0.8 GB VRAM, float16). `VQA_MODEL` in config.py controls which Florence-2 variant is used. Press U to re-run the last query without retyping.
+
 - **Arrow key jog works before S** — `_jog_direct()` writes directly to hardware and syncs `state.curr + state.target` so the proportional stepper doesn't override it next frame. Requires daemon to be connected.
 
 - **Current buffer contamination** — `reset_gripper_current_buffer()` must be called whenever the gripper opens (start of each retreat). Otherwise old high-current readings from a successful grip carry into the next attempt and cause false detection on attempt 2+.
@@ -134,8 +136,8 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 | F | Free-arm mode (low resistance, motors off) |
 | Z / X | Palm up / down (manual) |
 | C | Auto-palm on |
-| U | Auto-detect cup with RF-DETR |
-| T | Type target class for RF-DETR |
+| U | Re-detect with last Florence-2 query |
+| T | Type object description → Florence-2 finds it → SAM2 tracks |
 | J | Toggle PyBullet sim jog |
 | L | Start/stop data logging |
 | Q | Go home and quit |

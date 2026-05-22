@@ -77,10 +77,11 @@ SAM2_CHECKPOINT = r"E:/sam2.1_hiera_tiny.pt"
 SAM2_MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
 SEG_EVERY_N_FRAMES = 2
 
-RFDETR_MODEL_SIZE = "nano"
-RFDETR_CONFIDENCE = 0.45
-DEFAULT_TARGET_CLASS = "cup"
-AUTO_APPROACH_AFTER_RFDETR = False
+DEFAULT_TARGET_CLASS = "cup"   # default query used by U key
+
+# ── Florence-2 VQA detector ───────────────────────────────────────────────────
+VQA_MODEL  = "microsoft/Florence-2-base"   # swap to Florence-2-large for better accuracy
+VQA_DEVICE = "cuda"                        # "cpu" if VRAM is tight
 
 SIM_INSTANT_WHEN_JOG = True
 #SIM_CALIBRATION_PATH = ASSETS_DIR / "joint_sim_calibration.json"

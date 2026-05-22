@@ -11,8 +11,8 @@ from .simulation import PyBulletArmSim
 from .state import RobotState
 from .tracking import ObjectTracker
 from .utils import clamp, step_toward
-from .vision.rfdetr_selector import RFDETRTargetSelector
 from .vision.sam2_segmenter import SAM2Segmenter
+from .vision.vqa_detector import VQADetector
 
 
 class RobotApp:
@@ -23,7 +23,7 @@ class RobotApp:
         self.hardware = make_hardware(use_daemon=cfg.USE_MOTOR_DAEMON)
         self.sim: PyBulletArmSim | None = None
         self.segmenter = SAM2Segmenter()
-        self.detector = RFDETRTargetSelector()
+        self.detector = VQADetector(cfg.VQA_MODEL, cfg.VQA_DEVICE)
         self.tracker = ObjectTracker()
         self.controller = MotionController()
         self.mp_hands = mp.solutions.hands
@@ -572,10 +572,10 @@ class RobotApp:
             self.tracker.reset()
             self._go_home()
         elif key == ord("u"):
-            self._request_auto_target(cfg.DEFAULT_TARGET_CLASS)
+            self._request_auto_target(self.auto_target_name)
         elif key == ord("t"):
-            target = input(f"RF-DETR target class [{cfg.DEFAULT_TARGET_CLASS}]: ").strip()
-            self._request_auto_target(target or cfg.DEFAULT_TARGET_CLASS)
+            query = input(f"Describe object [{self.auto_target_name}]: ").strip()
+            self._request_auto_target(query or self.auto_target_name)
         elif key == ord("z"):
             self.state.auto_palm = False
             self.state.target["palm"] = int(clamp(self.state.target["palm"] + 50, cfg.PALM_MIN, cfg.PALM_MAX))
@@ -613,12 +613,12 @@ class RobotApp:
         print(f"Grasp trajectory started: {len(wps)} waypoints, "
               f"pos={self.state.grasp_pose.position_base}")
 
-    def _request_auto_target(self, target_name: str) -> None:
-        bbox = self.detector.select_bbox(self.last_frame_bgr, target_name)
+    def _request_auto_target(self, query: str) -> None:
+        bbox = self.detector.detect_bbox(self.last_frame_bgr, query)
         if bbox is None:
             return
-        self.auto_target_name = target_name
-        self.state.tracking_mode = "OBJECT"
+        self.auto_target_name = query
+        self.state.tracking_mode  = "OBJECT"
         self.state.object_reached = False
-        self.state.approach_mode = cfg.AUTO_APPROACH_AFTER_RFDETR
+        self.state.approach_mode  = False
         self.tracker.request_bbox(bbox)
