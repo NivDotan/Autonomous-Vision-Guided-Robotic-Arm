@@ -43,12 +43,13 @@ class VQADetector:
             results = self._processor.post_process_grounded_object_detection(
                 outputs,
                 inputs.input_ids,
-                box_threshold=0.3,
-                text_threshold=0.25,
                 target_sizes=[image.size[::-1]],
             )
             boxes  = results[0]["boxes"]
             scores = results[0]["scores"]
+            mask   = scores > 0.3
+            boxes  = boxes[mask]
+            scores = scores[mask]
             if len(boxes) == 0:
                 print(f"[VQA] '{query}' — nothing found")
                 return None
