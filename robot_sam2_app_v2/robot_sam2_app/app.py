@@ -644,6 +644,23 @@ class RobotApp:
         self.base_cam_active          = False
         print("Approach started (auto)")
 
+    def _move_base_smooth(self, target: int, duration: float) -> None:
+        """Move base motor with parabolic ease-in/ease-out over `duration` seconds."""
+        import math
+        start = self.state.curr["base"]
+        if start == target:
+            return
+        steps = max(10, int(duration * 25))  # ~25 updates/sec
+        interval = duration / steps
+        for i in range(steps + 1):
+            t = i / steps
+            factor = (1.0 - math.cos(math.pi * t)) / 2.0  # 0 → 1, parabolic
+            pos = int(start + (target - start) * factor)
+            self.state.curr["base"]   = pos
+            self.state.target["base"] = pos
+            self.hardware.write_ticks(self.state.target)
+            time.sleep(interval)
+
     def _scan_for_target(self, query: str) -> tuple | None:
         """Sweep base motor right/left in increasing steps, detect on each new frame."""
         if not self.hardware.connected:
@@ -654,11 +671,9 @@ class RobotApp:
             for sign in (+1, -1):
                 new_base = int(clamp(
                     start_base + sign * step * cfg.SCAN_STEP_TICKS, 1000, 3000))
-                self.state.target["base"] = new_base
-                self.hardware.write_ticks(self.state.target)
                 print(f"[SCAN] step {step} sign {sign:+d} → base={new_base}")
-                self._wait_base_settle(new_base)
-                time.sleep(cfg.SCAN_DWELL_TIME)  # hold position so camera stabilises
+                self._move_base_smooth(new_base, cfg.SCAN_MOVE_DURATION)
+                time.sleep(cfg.SCAN_DWELL_TIME)  # hold so camera stabilises
                 ok, frame = self.cap.read()
                 if not ok:
                     continue
@@ -666,22 +681,9 @@ class RobotApp:
                 self.last_frame_bgr = frame.copy()
                 bbox = self.detector.detect_bbox(frame, query)
                 if bbox is not None:
-                    # Sync state so stepper doesn't fight the new position
-                    self.state.curr["base"] = new_base
                     print(f"[SCAN] Found at base={new_base}")
                     return bbox
-        # Restore start position
-        self.state.target["base"] = start_base
-        self.state.curr["base"]   = start_base
-        self.hardware.write_ticks(self.state.target)
+        # Restore start position smoothly
+        print("[SCAN] Not found — returning to start position")
+        self._move_base_smooth(start_base, cfg.SCAN_MOVE_DURATION)
         return None
-
-    def _wait_base_settle(self, target: int) -> None:
-        """Block until base motor reaches target or timeout expires."""
-        deadline = time.monotonic() + cfg.SCAN_SETTLE_TIMEOUT
-        while time.monotonic() < deadline:
-            ticks = self.hardware.read_ticks()
-            if ticks and abs(ticks["base"] - target) < cfg.RETREAT_TOLERANCE:
-                self.state.curr["base"] = ticks["base"]
-                break
-            time.sleep(0.05)
