@@ -33,6 +33,8 @@ class RobotState:
     pre_grasp_palm: bool = False  # True while palm adjusts before gripper closes
     is_centered: bool = False
 
+    place_mode: bool = False       # True while approaching / placing at target location
+
     # ── Grip retry state machine ──────────────────────────────────────────────
     retreat_mode: bool = False
     pre_approach_ticks: dict = field(default_factory=dict)
