@@ -174,6 +174,8 @@ class RobotApp:
                         if ticks:
                             self.state.set_curr_and_target(ticks)
                             self.hardware.write_ticks(ticks)
+                if self.state.returning_home:
+                    self._check_arrived_home()
                 self.logger.record(self.state, self._last_tracking, w, h, self.free_mode, dist)
                 self._print_grip_current()
                 draw_overlay(frame, status, self.state, self.auto_target_name, dist)
@@ -224,6 +226,23 @@ class RobotApp:
                 self.state.gripper_closed    = True
                 self.state.target["gripper"] = cfg.GRIPPER_CLOSE
                 print("Palm ready — closing gripper")
+            return
+
+        # Place mode: open gripper when stable at PLACE_DIST_MM
+        if self.state.place_mode:
+            if dist_mm is None or not self.state.approach_mode:
+                return
+            if self.vl53 is not None and self.vl53.is_stable_and_close(
+                    cfg.PLACE_DIST_MM, cfg.VL53_STABLE_WINDOW_MM, cfg.VL53_MAX_JUMP_MM):
+                print(f"VL53: {dist_mm} mm — placing object")
+                self.state.approach_mode     = False
+                self.state.place_mode        = False
+                self.state.is_frozen         = False
+                self.state.gripper_closed    = False
+                self.state.target["gripper"] = cfg.GRIPPER_OPEN
+                self.tracker.reset()
+                time.sleep(0.5)
+                self._go_home()
             return
 
         if dist_mm is None or not self.state.approach_mode or self.state.gripper_closed:
@@ -570,6 +589,7 @@ class RobotApp:
             self.state.gripper_closed = False
             self.state.returning_home = False
             self.state.pre_grasp_palm = False
+            self.state.place_mode = False
             self.tracker.reset()
             self._go_home()
         elif key == ord("u"):
@@ -613,6 +633,30 @@ class RobotApp:
         self.state.trajectory_active    = True
         print(f"Grasp trajectory started: {len(wps)} waypoints, "
               f"pos={self.state.grasp_pose.position_base}")
+
+    def _check_arrived_home(self) -> None:
+        """Called each frame while returning_home=True. Prompts for place target on arrival."""
+        if not self.state.home:
+            return
+        home_ticks = home_ticks_to_state(self.state.home)
+        arrived = all(
+            abs(self.state.curr[n] - home_ticks[n]) < cfg.HOME_TOL
+            for n in ("shoulder", "elbow", "palm")
+        )
+        if not arrived:
+            return
+        self.state.returning_home = False
+        print("\n[PLACE] Object secured at home. Where do you want to place it?")
+        query = input("Place target description (blank = release here): ").strip()
+        if not query:
+            self.state.gripper_closed    = False
+            self.state.target["gripper"] = cfg.GRIPPER_OPEN
+            return
+        self.state.place_mode = True
+        self._request_auto_target(query)
+        if not self.state.approach_mode:
+            self.state.place_mode = False
+            print("[PLACE] Target not found — holding object. Press T to retry or Space to release.")
 
     def _request_auto_target(self, query: str) -> None:
         bbox = self.detector.detect_bbox(self.last_frame_bgr, query)

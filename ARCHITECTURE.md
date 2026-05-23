@@ -203,7 +203,16 @@ GRIPPING — gripper closes, count frames
     │
     ├─ current stable (spread ≤ CURRENT_STABLE_WINDOW=20, last 5 readings)
     │   AND min(last 5) > CURRENT_GRIP_THRESHOLD=50 after GRIP_LOAD_MIN_FRAMES (10 frames)
-    │   → OBJECT CAUGHT → go home (arm returns with gripper closed)
+    │   → OBJECT CAUGHT → returning_home=True → arm moves to home
+    │         │
+    │         ▼ _check_arrived_home() (per-frame, shoulder+elbow+palm within HOME_TOL)
+    │   arm at home → prompt "Place target description:"
+    │         │  user types description
+    │         ▼ place_mode=True → _request_auto_target(query)
+    │   Grounding DINO + scan sweep finds place target
+    │         ▼ SAM2 → CSRT tracking → IBVS approach (identical to pick)
+    │         │  VL53 stable ≤ PLACE_DIST_MM (200 mm)
+    │         ▼ gripper opens → go_home()  (place complete)
     │
     └─ no grip detected after GRIP_CHECK_FRAMES (25 frames) → MISS
            │
@@ -243,6 +252,24 @@ Started automatically at `setup()`. Toggle with **L** key.
 
 ---
 
+## Place Phase
+
+After a successful pick the arm returns home (`returning_home=True`). `_check_arrived_home()` runs each frame and detects arrival when shoulder + elbow + palm are within `HOME_TOL` (25 ticks) of home targets.
+
+On arrival, the terminal prompts for a place location. The user types a natural-language description (e.g. "the open box on the right"). The system then:
+
+1. Sets `place_mode=True` and calls `_request_auto_target(query)` — reuses the full pick pipeline: Grounding DINO → scan sweep → SAM2 → CSRT → IBVS approach
+2. In `_check_vl53()`, if `place_mode=True`, the pick trigger is bypassed entirely. Instead, `is_stable_and_close(PLACE_DIST_MM=200, ...)` triggers gripper open + `_go_home()`
+3. Blank description or failed detection: gripper opens in place (blank) or holds object for retry (failed)
+
+Press **R** at any time to reset `place_mode` and abort the place sequence.
+
+| Config constant | Value | Meaning |
+|----------------|-------|---------|
+| `PLACE_DIST_MM` | 200 | VL53 distance (mm) that triggers gripper open during place |
+
+---
+
 ## VL53 Stability Gate
 
 `VL53Sensor` runs a background thread reading serial lines like `"Distance: 243 mm"`.
@@ -251,7 +278,7 @@ Keeps a rolling deque of the last 10 readings.
 `is_stable_and_close(threshold, stable_window, max_jump)` returns True when:
 1. Last 3 readings span ≤ `VL53_STABLE_WINDOW_MM` (15 mm) — stable
 2. No consecutive pair in the buffer differs by > `VL53_MAX_JUMP_MM` (30 mm) — no occlusion spike
-3. Average of last 3 ≤ `VL53_GRIP_DIST_MM` (110 mm) — close enough
+3. Average of last 3 ≤ threshold (110 mm for pick, 200 mm for place)
 
 ---
 

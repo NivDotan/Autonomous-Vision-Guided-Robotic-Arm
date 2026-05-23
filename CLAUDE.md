@@ -120,6 +120,8 @@ APPROACH_AIM_X/Y            # where in the 4×4 grid the arm aims during approac
 
 - **Current buffer contamination** — `reset_gripper_current_buffer()` must be called whenever the gripper opens (start of each retreat). Otherwise old high-current readings from a successful grip carry into the next attempt and cause false detection on attempt 2+.
 
+- **Place phase** — after a successful pick the arm returns home (`returning_home=True`). `_check_arrived_home()` runs each frame and detects arrival (shoulder+elbow+palm within `HOME_TOL`). On arrival, terminal prompts for a place location. The user's description goes through the full pick pipeline (`_request_auto_target`): Grounding DINO → scan sweep → SAM2 → CSRT → IBVS approach, but `_check_vl53()` uses `PLACE_DIST_MM=200` as the VL53 trigger (opens gripper instead of closing). Press **R** to abort and reset `place_mode=False`. During place approach, `gripper_closed=True` so the pick VL53 branch is guarded by the `place_mode` check at the top of `_check_vl53()`.
+
 ---
 
 ## Controls (runtime)
