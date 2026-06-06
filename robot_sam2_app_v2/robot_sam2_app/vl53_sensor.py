@@ -55,6 +55,11 @@ class VL53Sensor:
         try:
             import serial
             self._serial = serial.Serial(self._port, self._baud, timeout=1)
+            # DTR pulse resets the ESP32 so it starts streaming immediately after reconnect
+            self._serial.setDTR(False)
+            time.sleep(0.1)
+            self._serial.setDTR(True)
+            time.sleep(2.0)  # wait for ESP32 boot + VL53L1X init
             self._stop.clear()
             self._thread = threading.Thread(target=self._read_loop, daemon=True)
             self._thread.start()
@@ -77,7 +82,6 @@ class VL53Sensor:
         self.connected = False
 
     def _read_loop(self) -> None:
-        last_print = 0.0
         while not self._stop.is_set():
             try:
                 line = self._serial.readline().decode("utf-8", errors="ignore").strip()
@@ -89,10 +93,7 @@ class VL53Sensor:
                 with self._lock:
                     self._dist_mm = val
                     self._buffer.append(val)
-                now = time.monotonic()
-                if now - last_print >= 1.0:
-                    print(f"[VL53] {val} mm")
-                    last_print = now
+                # Printing is handled by the app (throttled, only during approach).
             except ValueError:
                 pass
             except Exception as exc:

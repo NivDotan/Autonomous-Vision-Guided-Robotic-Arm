@@ -105,6 +105,14 @@ class MotorDaemon:
             self._curr_ticks = self._read_all()
             print(f"[daemon] Connected on {self._port}  motor1={pos}")
             print(f"[daemon] Current ticks: {dict(zip(MOTOR_NAMES, self._curr_ticks))}")
+            # Set goal = current BEFORE enabling torque so the arm holds its
+            # pose instead of snapping to a stale goal-position register value.
+            _sync_write(self._ser, REG_GOAL_POSITION,
+                        list(zip(MOTOR_IDS, self._curr_ticks)))
+            # Enable torque on all motors — without this, goal writes do nothing.
+            for mid in MOTOR_IDS:
+                _write(self._ser, mid, REG_TORQUE_ENABLE, 1, n=1)
+            print("[daemon] Torque enabled on all 6 motors.")
             return True
         except Exception as e:
             print(f"[daemon] Serial connect error: {e}")

@@ -50,9 +50,6 @@ robot_system/          kinematics / perception / calibration library
 motor_daemon/          C++ 200 Hz daemon (Windows)
 motor_daemon_py.py     Python daemon (Linux) — ZMQ REQ/REP :5555 + PUB :5556
 kinematics/            C++ FK/IK/Jacobian (pykinematics)
-tracking_cpp/          C++ CSRT tracker
-dashboard/             FastAPI + Three.js web UI
-benchmarks/            profilers
 tools/                 calibration & test helper scripts
 docs/                  extended guides
 ```

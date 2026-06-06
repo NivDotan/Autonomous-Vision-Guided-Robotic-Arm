@@ -21,6 +21,30 @@ from .vision.sam2_segmenter import SAM2Segmenter
 from .vision.vqa_detector import VQADetector
 
 
+def _open_camera(device, width: int = 640, height: int = 480) -> cv2.VideoCapture:
+    """Open a camera forcing the V4L2 backend + MJPG + 640x480.
+
+    Two USB cameras on one controller exceed USB2 bandwidth in raw YUYV mode,
+    causing 'ioctl(VIDIOC_QBUF): Bad file descriptor'. The explicit CAP_V4L2
+    backend (instead of OpenCV's default, which may pick GStreamer) is required
+    for MJPG to actually negotiate; MJPG compresses on-camera so both fit.
+    A string /dev/videoN path implies Linux; an int index falls back to the
+    default backend (Windows).
+    """
+    is_linux_path = isinstance(device, str) and device.startswith("/dev/")
+    cap = (cv2.VideoCapture(device, cv2.CAP_V4L2) if is_linux_path
+           else cv2.VideoCapture(device))
+    if not cap.isOpened():
+        print(f"[camera] {device} NOT available")
+        return cap
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    print(f"[camera] opened {device}: {int(cap.get(3))}x{int(cap.get(4))}")
+    return cap
+
+
 class RobotApp:
     """Main orchestration class for camera, vision, sim, and hardware."""
 
@@ -33,9 +57,10 @@ class RobotApp:
         self.tracker = ObjectTracker()
         self.controller = MotionController()
         self.mp_hands = _MP_SOLUTIONS.hands if _MP_SOLUTIONS else None
-        self.cap = cv2.VideoCapture(cfg.CAMERA_INDEX)
+        self.cap = _open_camera(cfg.CAMERA_INDEX)
         self.frame_index = 0
         self.last_frame_bgr = None
+        self._last_vl53_print = 0.0
         self.auto_target_name = cfg.DEFAULT_TARGET_CLASS
         self.free_mode = False
         from .tracking import TrackingResult
@@ -47,7 +72,7 @@ class RobotApp:
         self.base_cam_active = False   # True = base cam controls base motor
         self.base_frame_index = 0
         if cfg.BASE_CAM_ENABLED:
-            self.base_cap = cv2.VideoCapture(cfg.BASE_CAMERA_INDEX)
+            self.base_cap = _open_camera(cfg.BASE_CAMERA_INDEX)
             self.base_tracker = ObjectTracker()
 
         from .data_logger import DataLogger
@@ -168,6 +193,11 @@ class RobotApp:
                 dist = self.vl53.distance_mm if self.vl53 is not None else None
                 self.state.vl53_dist_mm = dist
                 self._check_vl53(dist)
+                # Print VL53 distance every 3 s, but only while approaching a target.
+                if (self.state.approach_mode and dist is not None
+                        and time.time() - self._last_vl53_print >= 3.0):
+                    print(f"[VL53] {dist} mm")
+                    self._last_vl53_print = time.time()
                 if self.state.retreat_mode:
                     status = self._update_retreat()
                 elif not self.free_mode:

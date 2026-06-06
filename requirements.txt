@@ -1,0 +1,17 @@
+# Python dependencies for the SO-101 application and Linux motor daemon.
+# Install:  pip install -r requirements.txt
+# SAM2 is installed separately:  pip install git+https://github.com/facebookresearch/sam2.git
+
+# Vision / ML
+opencv-contrib-python>=4.8.0
+torch>=2.5.1
+torchvision>=0.20.1
+transformers>=4.40.0          # Grounding DINO
+mediapipe==0.10.21            # optional: hand teleoperation
+numpy<2
+
+# Control / hardware
+pyserial>=3.5                 # Linux Feetech + ESP32 serial
+pyzmq>=25.0                   # daemon IPC
+msgpack>=1.0                  # daemon IPC
+pybullet>=3.2.6               # optional: collision / sim

@@ -4,3 +4,4 @@
 - `gripper_sensor_calibration.py` — calibrates gripper camera intrinsics, VL53 ToF alignment, and camera-to-wrist pose samples.
 - `run_fk_check.py` — connects to the SO-101 via lerobot and prints observed joints plus forward-kinematics end-effector position.
 - `test_cameras.py` — opens camera indices 0 and 1 for a quick OpenCV feed check.
+- `test_two_cameras.py` — opens both cameras (resolved by v4l2 name) plus the VL53 sensor and shows a combined live feed; useful for verifying camera/sensor wiring on Linux.
