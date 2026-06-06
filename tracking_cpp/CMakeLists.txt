@@ -27,7 +27,7 @@ pybind11_add_module(pytracker bindings/py_tracker.cpp)
 target_link_libraries(pytracker PRIVATE tracker_core)
 
 # Output alongside kinematics module.
-set(_PY_PKG_DIR "${CMAKE_SOURCE_DIR}/robot_sam2_app/robot_sam2_app")
+set(_PY_PKG_DIR "${CMAKE_SOURCE_DIR}/robot_sam2_app_v2/robot_sam2_app")
 set_target_properties(pytracker PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY         "${_PY_PKG_DIR}"
   RUNTIME_OUTPUT_DIRECTORY         "${_PY_PKG_DIR}"

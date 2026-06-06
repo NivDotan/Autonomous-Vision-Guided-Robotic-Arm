@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>so101_driver</name>
+  <version>0.1.0</version>
+  <description>
+    ROS2 driver node for the SO-101 arm — wraps robot_sam2_app_v2 hardware.py.
+    Phase 2 of the ROS2 Jazzy migration. Supports two backends:
+      daemon  — ZMQ → C++ motor_daemon (200 Hz PID, needs Linux rebuild, see TODO)
+      feetech — direct lerobot Feetech serial on /dev/ttyACM*
+    Defaults to dry_run=true so it never crashes without hardware.
+  </description>
+  <maintainer email="nivmika@gmail.com">niv</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>sensor_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

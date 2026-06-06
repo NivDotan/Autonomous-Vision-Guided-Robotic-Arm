@@ -1,0 +1,20 @@
+task_planner:
+  ros__parameters:
+    dry_run: true            # true = commands published but driver is also dry_run
+    max_retries: 3           # MAX_GRIP_RETRIES from config.py
+    tick_rate: 25.0          # Hz — state machine update rate
+    frame_w: 640.0
+    frame_h: 480.0
+    grip_check_frames: 25    # GRIP_CHECK_FRAMES from config.py
+    current_threshold: 50.0  # CURRENT_GRIP_THRESHOLD
+    current_stable_w: 20.0   # CURRENT_STABLE_WINDOW
+    current_stable_n: 5      # CURRENT_STABLE_COUNT
+
+    # Home position ticks — from StartHelloPos_handoff.json / DEFAULT_TICKS in config.py
+    # TODO(hardware): verify against your robot's actual home position
+    home_base: 2048
+    home_shoulder: 2048
+    home_elbow: 2048
+    home_palm: 2048
+    home_wrist: 3200
+    home_gripper: 3000

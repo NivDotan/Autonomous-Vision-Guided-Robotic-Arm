@@ -8,12 +8,12 @@ PROJECT_ROOT = PACKAGE_DIR.parent.parent
 ASSETS_DIR = PACKAGE_DIR / "assets"
 
 
-PORT = "COM4"
-CAMERA_INDEX = 1     # 0 = first camera, 1 = second camera, etc.
+PORT = "/dev/ttyACM0"  # Linux — was COM4 on Windows
+CAMERA_INDEX = 0     # Linux: main/gripper camera
 
 # ── Base camera (wide-view, drives base motor) ────────────────────────────────
 BASE_CAM_ENABLED    = True   # Set False to skip
-BASE_CAMERA_INDEX   = 0      # cv2.VideoCapture index for the base/overview camera
+BASE_CAMERA_INDEX   = 2      # Linux: base/wide camera (USB cams often appear as 0,2,4...)
 BASE_CAM_K_BASE     = 140    # gain: base motor ticks per unit horizontal error
 BASE_CAM_DEADBAND_X = 0.08   # fraction of frame width to ignore (dead zone)
 MOTOR_NAMES = ("base", "shoulder", "elbow", "palm", "wrist", "gripper")
@@ -73,7 +73,7 @@ GRIP_CHECK_FRAMES    = 25  # frames after close before declaring miss (~1 sec at
 GRIP_LOAD_MIN_FRAMES = 10  # min frames before checking load (avoids motor-torque false positive)
 RETREAT_TOLERANCE    = 30  # ticks — close enough to pre-approach position
 
-SAM2_CHECKPOINT = r"E:/sam2.1_hiera_tiny.pt"
+SAM2_CHECKPOINT = "/home/niv/sam2.1_hiera_tiny.pt"  # TODO: set your Linux path
 SAM2_MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
 SEG_EVERY_N_FRAMES = 2
 
@@ -106,12 +106,12 @@ DAEMON_ENDPOINT  = "tcp://localhost:5555"
 
 # ── RealSense depth camera (Tier 1) ──────────────────────────────────────────
 MOCK_REALSENSE   = False            # Set True to use MockRealSenseDepth for testing
-REALSENSE_ENABLED = True            # Set False to skip RealSense init entirely
+REALSENSE_ENABLED = False           # Set True if you have a RealSense connected
 HAND_EYE_CALIB_PATH: str | None = None  # Path to camera→base calibration JSON
 
 # ── VL53L1X distance sensor via ESP32 ────────────────────────────────────────
 VL53_ENABLED          = True   # Set False to skip sensor init
-VL53_PORT             = "COM3" # ESP32
+VL53_PORT             = "/dev/ttyUSB0"  # Linux — was COM3 on Windows (ESP32)
 VL53_BAUD             = 115200
 VL53_LOCK_DIST_MM        = 130  # Below this: freeze base/shoulder/elbow, only palm moves
 VL53_GRIP_DIST_MM        = 110   # Trigger pre-grasp when avg of last 3 readings ≤ this (mm)

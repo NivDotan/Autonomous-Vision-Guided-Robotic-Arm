@@ -1,0 +1,9 @@
+# Initialise SAM2 + CSRT tracking on a bounding box in the latest camera frame.
+float32 x_min
+float32 y_min
+float32 x_max
+float32 y_max
+string camera          # "base" or "gripper"
+---
+bool success
+string message

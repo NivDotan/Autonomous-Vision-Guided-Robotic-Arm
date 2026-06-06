@@ -1,0 +1,10 @@
+# Convert a camera pixel to robot-base-frame XY on the table plane.
+float32 pixel_x
+float32 pixel_y
+string camera_name   # "base" or "gripper"
+---
+bool success
+string message
+float32 robot_x      # metres in robot base frame
+float32 robot_y
+float32 robot_z      # = table_z from calibration YAML

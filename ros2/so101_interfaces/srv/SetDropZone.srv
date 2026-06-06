@@ -1,0 +1,8 @@
+# Set the drop zone for the place phase.
+string mode          # "manual" or "ai"
+string query         # for ai mode: natural-language description of drop target
+float32 pixel_x      # for manual mode: fixed pixel coordinate
+float32 pixel_y
+---
+bool success
+string message

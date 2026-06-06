@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+  Top-level SO-101 description wrapper.
+
+  Selects between the minimal placeholder model (default, no external assets)
+  and the official SO-ARM101 model via the `use_placeholder` xacro arg:
+
+      xacro so101.urdf.xacro use_placeholder:=true     # placeholder (default)
+      xacro so101.urdf.xacro use_placeholder:=false    # official SO-ARM101
+
+  To enable the official model:
+    1. Follow FETCH_OFFICIAL_URDF.md to copy the SO-ARM101 urdf + meshes here
+       as urdf/so101_official.urdf.xacro (and meshes/).
+    2. Launch with use_placeholder:=false.
+  Until then, use_placeholder:=false will fail to find the include — that is
+  expected; the official file is intentionally NOT committed.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="so101">
+
+  <xacro:arg name="use_placeholder" default="true"/>
+
+  <xacro:if value="$(arg use_placeholder)">
+    <xacro:include filename="$(find so101_description)/urdf/so101_placeholder.urdf.xacro"/>
+  </xacro:if>
+
+  <xacro:unless value="$(arg use_placeholder)">
+    <!-- TODO(hardware): provide urdf/so101_official.urdf.xacro per FETCH_OFFICIAL_URDF.md -->
+    <xacro:include filename="$(find so101_description)/urdf/so101_official.urdf.xacro"/>
+  </xacro:unless>
+
+</robot>

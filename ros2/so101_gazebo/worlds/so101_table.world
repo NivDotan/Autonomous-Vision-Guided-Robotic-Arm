@@ -1,0 +1,106 @@
+<?xml version="1.0" ?>
+<!--
+  so101_table.world — Gazebo Harmonic world for the SO-101 pick-and-place demo.
+
+  Contents:
+    - Ground plane + directional sunlight
+    - Table at x=0.5m (arm base at origin, arm reaches to ~0.4m in x)
+    - Two coloured cylinders as pick/place objects (placeholders)
+
+  TODO(hardware): replace placeholder cylinders with calibrated object positions
+  and accurate dimensions once real workpiece geometry is known.
+  TODO(hardware): add the SO-101 robot SDF model once official meshes are
+  available (see so101_description/urdf/FETCH_OFFICIAL_URDF.md).
+-->
+<sdf version="1.9">
+  <world name="so101_table">
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <!-- Sunlight -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Table (arm base at origin, table surface at z=0.75m) -->
+    <model name="table">
+      <static>true</static>
+      <pose>0.5 0 0.375 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1.2 0.8 0.75</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1.2 0.8 0.75</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Pick target — red cylinder -->
+    <!-- TODO(hardware): set position from calibration; this is a placeholder -->
+    <model name="pick_object">
+      <pose>0.35 0.0 0.812 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.033</radius><length>0.12</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.033</radius><length>0.12</length></cylinder></geometry>
+          <material><ambient>0.9 0.1 0.1 1</ambient><diffuse>0.9 0.1 0.1 1</diffuse></material>
+        </visual>
+        <inertial>
+          <mass>0.15</mass>
+          <inertia><ixx>3e-4</ixx><iyy>3e-4</iyy><izz>8e-5</izz></inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Drop zone — green box -->
+    <!-- TODO(hardware): set position from calibration -->
+    <model name="drop_zone">
+      <static>true</static>
+      <pose>0.35 0.25 0.752 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.12 0.12 0.005</size></box></geometry>
+          <material><ambient>0.1 0.8 0.1 0.7</ambient><diffuse>0.1 0.8 0.1 0.7</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

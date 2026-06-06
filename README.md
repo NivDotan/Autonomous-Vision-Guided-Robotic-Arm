@@ -8,7 +8,7 @@ A 6-DOF robotic arm system with real-time vision tracking, C++ kinematics, traje
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        robot_sam2_app                           │
+│                      robot_sam2_app_v2                          │
 │                                                                 │
 │  Camera ──► SAM2 Segmentation ──► CSRT Tracker                 │
 │         ──► RF-DETR Detection ──► Auto Target                  │
@@ -52,7 +52,7 @@ A 6-DOF robotic arm system with real-time vision tracking, C++ kinematics, traje
 - **Direct Feetech STS3215 serial protocol** — no Python GIL overhead
 - **Trajectory execution** — accepts waypoint lists and interpolates independently
 
-### Vision Pipeline (`robot_sam2_app/`)
+### Vision Pipeline (`robot_sam2_app_v2/`)
 - **SAM2** segmentation on click → **CSRT** bounding-box tracking at camera framerate
 - **RF-DETR** object detection — press `U` for cup, `T` for any class
 - **MediaPipe Hands** — hand-gesture teleoperation mode
@@ -66,7 +66,7 @@ A 6-DOF robotic arm system with real-time vision tracking, C++ kinematics, traje
 
 ### Additional Systems
 - **Web dashboard** (`dashboard/`) — FastAPI + WebSocket + Three.js real-time arm visualization
-- **ROS2 package** (`ros2_ws/`) — vision, kinematics, hardware, sim nodes; `MoveToTarget` action server
+- **ROS2 Jazzy stack** (`ros2/`) — driver, perception, calibration, task planner, Gazebo, and RViz bringup
 - **Benchmarks** (`benchmarks/`) — latency profiler, tracking accuracy vs ArUco, pick-and-place success rate
 - **Grasp quality** — epsilon metric (wrench space), auto dataset recording
 
@@ -111,7 +111,7 @@ motor_daemon.exe --port COM4 --zmq-port 5555
 
 **Terminal 2 — app:**
 ```cmd
-cd robot_sam2_app
+cd robot_sam2_app_v2
 python -m robot_sam2_app.main
 ```
 
@@ -133,7 +133,7 @@ python -m robot_sam2_app.main
 | `C` | Auto palm tracking |
 | `Q` | Return to home and quit |
 
-### Configuration (`robot_sam2_app/robot_sam2_app/config.py`)
+### Configuration (`robot_sam2_app_v2/robot_sam2_app/config.py`)
 
 ```python
 USE_MOTOR_DAEMON  = True   # route through C++ 200Hz daemon
@@ -160,7 +160,7 @@ robot_project/
 │   ├── include/
 │   └── src/
 ├── tracking_cpp/                     # C++ CSRT + optical flow
-├── robot_sam2_app/
+├── robot_sam2_app_v2/
 │   └── robot_sam2_app/
 │       ├── app.py                    # Main orchestration
 │       ├── config.py
@@ -170,9 +170,10 @@ robot_project/
 │       ├── filters/                  # Kalman, UKF
 │       └── grasp/                    # Quality metric, dataset recorder
 ├── dashboard/                        # FastAPI + Three.js web UI
-├── ros2_ws/                          # ROS2 Humble package
+├── ros2/                             # ROS2 Jazzy architecture
 ├── benchmarks/                       # Latency, tracking accuracy, pick-place
-└── PROJECT_GUIDE.md                  # Full setup and hardware guide
+├── tools/                            # Calibration and diagnostic helpers
+└── docs/                             # Extended setup and project guides
 ```
 
 ---
@@ -184,3 +185,32 @@ robot_project/
 - RealSense D435 + SAM2 segmentation → PCA on masked point cloud → 6-DOF grasp pose, enabling autonomous pick-and-place without hand-coded positions
 - Time-synchronized trapezoidal trajectory planning with PyBullet collision pre-check before execution
 - Full ROS2 system with MoveToTarget action server enabling autonomous grasping from natural-language object names via RF-DETR
+
+---
+
+## ROS2 Jazzy architecture (`ros2/`)
+
+A clean multi-package ROS2 Jazzy (Ubuntu 24.04) stack that wraps the working app
+as ROS2 nodes. Eight packages:
+
+| Package | Role |
+|---------|------|
+| `so101_description` | URDF/xacro + RViz config |
+| `so101_bringup` | launch files for every phase |
+| `so101_interfaces` | custom msgs + srvs |
+| `so101_driver` | servo driver node (ZMQ daemon / direct pyserial), tick↔rad, joint-name remap |
+| `so101_perception` | base/gripper cameras, VL53 range, Grounding DINO, SAM2+CSRT |
+| `so101_calibration` | pixel→robot homography service |
+| `so101_task_planner` | pick-and-place state machine |
+| `so101_gazebo` | Gazebo Harmonic world |
+
+Build and run:
+
+```bash
+cd ~/so101_ws && colcon build --symlink-install && source install/setup.bash
+ros2 launch so101_bringup hardware.launch.py dry_run:=false backend:=daemon   # RViz + live arm
+ros2 launch so101_bringup full_stack.launch.py                                # all nodes
+```
+
+The official SO-101 URDF (with meshes) comes from `legalaspro/so101-ros-physical-ai`,
+cloned alongside this repo in the colcon workspace.

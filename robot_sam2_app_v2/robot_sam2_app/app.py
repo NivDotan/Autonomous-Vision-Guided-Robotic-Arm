@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import cv2
-import mediapipe as mp
+try:
+    import mediapipe as mp
+    _MP_SOLUTIONS = getattr(mp, 'solutions', None)
+except ImportError:
+    mp = None
+    _MP_SOLUTIONS = None
 import time
 
 from . import config as cfg
@@ -26,7 +32,7 @@ class RobotApp:
         self.detector = VQADetector(cfg.VQA_MODEL, cfg.VQA_DEVICE)
         self.tracker = ObjectTracker()
         self.controller = MotionController()
-        self.mp_hands = mp.solutions.hands
+        self.mp_hands = _MP_SOLUTIONS.hands if _MP_SOLUTIONS else None
         self.cap = cv2.VideoCapture(cfg.CAMERA_INDEX)
         self.frame_index = 0
         self.last_frame_bgr = None
@@ -132,7 +138,8 @@ class RobotApp:
             cv2.setMouseCallback("Base Camera", self._on_base_mouse)
             print(f"Base camera ready (index {cfg.BASE_CAMERA_INDEX}). Click window to track. Press B to drive base motor.")
 
-        with self.mp_hands.Hands(min_detection_confidence=0.6) as hands:
+        _hands_ctx = self.mp_hands.Hands(min_detection_confidence=0.6) if self.mp_hands else None
+        with (_hands_ctx if _hands_ctx else contextlib.nullcontext()) as hands:
             while self.cap.isOpened():
                 # Camera capture — RealSense or plain webcam.
                 if self._realsense_ok:
@@ -347,6 +354,8 @@ class RobotApp:
             return self.controller.update_from_object(self.state, tracking, width, height)
         from .tracking import TrackingResult
         self._last_tracking = TrackingResult(False)
+        if results is None:
+            return "HAND MODE (mediapipe unavailable)"
         return self.controller.update_from_hand(self.state, results)
 
     def _handle_grip_state(self) -> str | None:

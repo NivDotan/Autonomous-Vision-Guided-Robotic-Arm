@@ -1,5 +1,7 @@
 # Build artifacts
 build/
+install/
+log/
 *.pyd
 *.pdb
 *.exp
@@ -14,12 +16,11 @@ __pycache__/
 *.egg-info/
 .eggs/
 dist/
-*.egg
 .env
 .venv/
 env/
 
-# Model weights (large binary files)
+# Model weights (large binaries)
 *.pt
 *.pth
 *.onnx
@@ -28,10 +29,11 @@ env/
 
 # Data / outputs
 data/
-dataset_raw/
 outputs/
 runs/
 results/
+logs/
+robot_log_*.csv
 *.jpg
 *.jpeg
 *.png
@@ -40,7 +42,7 @@ results/
 *.npy
 *.npz
 
-# Calibration / home position files (machine-specific)
+# Machine-specific calibration
 home_data.json
 StartHelloPos.json
 joint_sim_calibration.json
@@ -49,7 +51,8 @@ so101_simple_sim.urdf
 # External libraries (not our code)
 lerobot/
 
-# IDE
+# AI assistant / IDE
+.claude/
 .vscode/
 .idea/
 *.suo

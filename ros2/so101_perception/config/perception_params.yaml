@@ -1,0 +1,45 @@
+base_camera:
+  ros__parameters:
+    device_index: 0        # was CAMERA_INDEX=0 in v2 (BASE_CAMERA_INDEX)
+    width: 640
+    height: 480
+    fps: 30.0
+    frame_id: "base_camera_link"
+
+gripper_camera:
+  ros__parameters:
+    device_index: 1        # was CAMERA_INDEX=1 in v2 (main arm camera)
+    width: 640
+    height: 480
+    fps: 30.0
+    frame_id: "gripper_camera_link"
+
+distance_sensor:
+  ros__parameters:
+    serial_port: "/dev/ttyACM1"  # was COM3 on Windows (ESP32)
+                                 # TODO(hardware): confirm with: ls /dev/ttyACM*
+    baudrate: 115200
+    publish_rate: 10.0
+    frame_id: "vl53_link"
+    dry_run: true                # set false when ESP32 is connected
+
+object_detection:
+  ros__parameters:
+    model: "IDEA-Research/grounding-dino-tiny"  # or grounding-dino-base for accuracy
+    device: "cuda"               # "cpu" if VRAM is limited
+    confidence_thresh: 0.75      # matches VQA threshold in vqa_detector.py
+    eager_load: false            # true = load model at startup (adds ~5s launch time)
+
+sam_node:
+  ros__parameters:
+    sam2_checkpoint: ""          # TODO(hardware): set to your SAM2 checkpoint path
+                                 # e.g. "/path/to/sam2.1_hiera_tiny.pt"
+    sam2_model_cfg: "configs/sam2.1/sam2.1_hiera_t.yaml"
+    device: "cuda"
+    frame_id: "gripper_camera_link"
+
+drop_zone_detector:
+  ros__parameters:
+    default_mode: "manual"       # "manual" or "ai"
+    model: "IDEA-Research/grounding-dino-tiny"
+    device: "cuda"

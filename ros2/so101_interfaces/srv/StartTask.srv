@@ -1,0 +1,6 @@
+# Start a full pick-and-place task.
+string pick_query    # natural-language description of object to pick
+string place_query   # natural-language description of drop location (empty = use SetDropZone)
+---
+bool success
+string message

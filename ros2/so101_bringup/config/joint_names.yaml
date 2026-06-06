@@ -1,0 +1,37 @@
+# Shared SO-101 joint definitions for the ROS2 stack.
+#
+# Source of truth: robot_sam2_app_v2/robot_sam2_app/config.py
+#   MOTOR_NAMES, MOTOR_IDS, GRIPPER_*, SH_/EL_/PALM_ limits.
+# Reused by later phases (so101_driver /joint_command + /joint_states,
+# so101_task_planner) to keep joint ordering/limits consistent.
+#
+# TODO(hardware): tick<->radian conversion below assumes a Feetech STS3215
+#   range of 4096 ticks = 2*pi rad about centre 2048 (scale 0.001534 rad/tick).
+#   Verify the real scale and per-joint zero offset on the physical robot.
+
+so101:
+  # Ordered to match MOTOR_NAMES / MOTOR_IDS (base..gripper = IDs 1..6).
+  joint_names: [base, shoulder, elbow, palm, wrist, gripper]
+  motor_ids:   [1, 2, 3, 4, 5, 6]
+
+  # Raw Feetech tick centre and conversion (0..4096, centre 2048).
+  tick_center: 2048
+  tick_to_rad: 0.001534   # 2*pi / 4096   # TODO(hardware): verify
+
+  # Per-joint tick limits straight from config.py. base/wrist ranges are NOT in
+  # config.py — left null and treated as full-range placeholders (see URDF).
+  tick_limits:
+    base:     [null, null]   # TODO(hardware): base tick range not in config.py
+    shoulder: [1000, 3000]   # SH_MIN, SH_MAX
+    elbow:    [400,  3000]   # EL_MIN, EL_MAX
+    palm:     [1000, 3500]   # PALM_MIN, PALM_MAX
+    wrist:    [null, null]   # TODO(hardware): wrist tick range not in config.py
+    gripper:  [2100, 3000]   # GRIPPER_CLOSE, GRIPPER_OPEN
+
+  defaults_ticks:            # DEFAULT_TICKS in config.py
+    base: 2048
+    shoulder: 2048
+    elbow: 2048
+    palm: 2048
+    wrist: 3200
+    gripper: 3000

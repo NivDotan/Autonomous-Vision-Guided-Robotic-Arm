@@ -1,0 +1,31 @@
+so101_driver:
+  ros__parameters:
+    # "daemon" → ZMQ to C++ motor_daemon (needs Linux rebuild, see TODO in driver_node.py)
+    # "feetech" → direct lerobot serial on /dev/ttyACM*
+    backend: "daemon"
+
+    # Feetech backend serial port (Linux: /dev/ttyACM0 or /dev/ttyUSB0)
+    # Was COM4 on Windows. TODO(hardware): confirm /dev path on target machine.
+    serial_port: "/dev/ttyACM0"
+    baudrate: 1000000
+
+    # ZMQ daemon endpoint (daemon backend)
+    daemon_endpoint: "tcp://localhost:5555"
+
+    # true = no hardware connect; node runs but drops all commands silently
+    dry_run: true
+
+    publish_rate: 20.0   # Hz, joint_states publish rate
+
+    # Max ticks delta allowed per /joint_command (0 = no speed limiting)
+    # Mirrors SPEED_LIMIT=25 in config.py. The daemon already does 200Hz PID
+    # stepping, so this is an optional extra safety gate in the ROS layer.
+    speed_limit: 0
+
+    # false = publish with internal names  (base, shoulder, elbow, palm, wrist, gripper)
+    # true  = publish with official names  (shoulder_pan, shoulder_lift, elbow_flex,
+    #                                       wrist_flex, wrist_roll, gripper)
+    # Set true when using the official SO-101 URDF from legalaspro/so101-ros-physical-ai
+    # so RViz / MoveIt sees matching joint names.
+    # /joint_command accepts BOTH naming conventions regardless of this setting.
+    use_official_names: false

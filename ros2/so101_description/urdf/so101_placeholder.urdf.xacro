@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<!--
+  Minimal PLACEHOLDER description of the SO-101 6-DOF arm.
+
+  Purpose: render in RViz immediately with NO external meshes so Phase 1
+  (visualization + TF + joint_state_publisher_gui) can be verified before the
+  official SO-ARM101 URDF/meshes are fetched (see FETCH_OFFICIAL_URDF.md).
+
+  Joints are named to match the project's MOTOR_NAMES
+  (robot_sam2_app_v2/.../config.py) so that future /joint_states line up
+  directly with the driver:
+      base, shoulder, elbow, palm, wrist, gripper
+
+  Geometry: simple boxes/cylinders sized from the link-length placeholders in
+  robot_system/kinematics/geometry.py (L0..L3). These are rough proportions for
+  visualization only — they are NOT a kinematic calibration.
+
+  TODO(hardware): replace link lengths/offsets with measured values and meshes.
+  TODO(hardware): the joint limits below are derived from config.py tick ranges
+  assuming STS3215 4096 ticks = 2*pi rad about a 2048 centre. Verify the real
+  tick->radian scale and per-joint zero offset against the physical robot
+  before trusting these for anything beyond visualization.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="so101">
+
+  <!-- ── Link lengths (m), from robot_system/kinematics/geometry.py ────────── -->
+  <xacro:property name="L0" value="0.075"/>   <!-- base plate -> shoulder pivot -->
+  <xacro:property name="L1" value="0.130"/>   <!-- shoulder -> elbow            -->
+  <xacro:property name="L2" value="0.125"/>   <!-- elbow -> wrist               -->
+  <xacro:property name="L3" value="0.060"/>   <!-- wrist -> gripper tip          -->
+
+  <!-- ── Joint limits (rad) — derived from config.py tick ranges, see TODO ── -->
+  <!-- scale = 2*pi / 4096 ≈ 0.001534 rad/tick about centre 2048              -->
+  <xacro:property name="base_lo"     value="-3.14"/>  <!-- TODO: base tick range not in config -->
+  <xacro:property name="base_hi"     value="3.14"/>
+  <xacro:property name="shoulder_lo" value="-1.61"/>  <!-- SH_MIN 1000 -->
+  <xacro:property name="shoulder_hi" value="1.46"/>   <!-- SH_MAX 3000 -->
+  <xacro:property name="elbow_lo"    value="-2.53"/>  <!-- EL_MIN 400  -->
+  <xacro:property name="elbow_hi"    value="1.46"/>   <!-- EL_MAX 3000 -->
+  <xacro:property name="palm_lo"     value="-1.61"/>  <!-- PALM_MIN 1000 -->
+  <xacro:property name="palm_hi"     value="2.23"/>   <!-- PALM_MAX 3500 -->
+  <xacro:property name="wrist_lo"    value="-3.14"/>  <!-- TODO: wrist range not in config -->
+  <xacro:property name="wrist_hi"    value="3.14"/>
+  <xacro:property name="gripper_lo"  value="-0.84"/>  <!-- GRIPPER_CLOSE 2100 -->
+  <xacro:property name="gripper_hi"  value="1.46"/>   <!-- GRIPPER_OPEN 3000  -->
+
+  <xacro:property name="effort"   value="10.0"/>
+  <xacro:property name="velocity" value="3.0"/>
+
+  <!-- ── Colours ───────────────────────────────────────────────────────────── -->
+  <material name="so101_grey"><color rgba="0.3 0.3 0.34 1.0"/></material>
+  <material name="so101_blue"><color rgba="0.15 0.45 0.85 1.0"/></material>
+  <material name="so101_orange"><color rgba="0.9 0.5 0.1 1.0"/></material>
+
+  <!-- Convenience macro for a simple box link with matching collision. -->
+  <xacro:macro name="box_link" params="name x y z mat *origin">
+    <link name="${name}">
+      <visual>
+        <xacro:insert_block name="origin"/>
+        <geometry><box size="${x} ${y} ${z}"/></geometry>
+        <material name="${mat}"/>
+      </visual>
+      <collision>
+        <xacro:insert_block name="origin"/>
+        <geometry><box size="${x} ${y} ${z}"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1"/>
+        <inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <!-- ── base_link (root / fixed world frame) ───────────────────────────────── -->
+  <xacro:box_link name="base_link" x="0.10" y="0.10" z="0.03" mat="so101_grey">
+    <origin xyz="0 0 0.015" rpy="0 0 0"/>
+  </xacro:box_link>
+
+  <!-- ── base joint: yaw about Z ────────────────────────────────────────────── -->
+  <xacro:box_link name="shoulder_link" x="0.06" y="0.06" z="${L0}" mat="so101_blue">
+    <origin xyz="0 0 ${L0/2}" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="base" type="revolute">
+    <parent link="base_link"/>
+    <child  link="shoulder_link"/>
+    <origin xyz="0 0 0.03" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${base_lo}" upper="${base_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- ── shoulder joint: pitch about Y ──────────────────────────────────────── -->
+  <xacro:box_link name="upper_arm_link" x="0.05" y="0.05" z="${L1}" mat="so101_grey">
+    <origin xyz="0 0 ${L1/2}" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="shoulder" type="revolute">
+    <parent link="shoulder_link"/>
+    <child  link="upper_arm_link"/>
+    <origin xyz="0 0 ${L0}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${shoulder_lo}" upper="${shoulder_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- ── elbow joint: pitch about Y ─────────────────────────────────────────── -->
+  <xacro:box_link name="forearm_link" x="0.045" y="0.045" z="${L2}" mat="so101_blue">
+    <origin xyz="0 0 ${L2/2}" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="elbow" type="revolute">
+    <parent link="upper_arm_link"/>
+    <child  link="forearm_link"/>
+    <origin xyz="0 0 ${L1}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${elbow_lo}" upper="${elbow_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- ── palm joint: pitch about Y (wrist flex) ─────────────────────────────── -->
+  <xacro:box_link name="wrist_link" x="0.04" y="0.04" z="${L3}" mat="so101_grey">
+    <origin xyz="0 0 ${L3/2}" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="palm" type="revolute">
+    <parent link="forearm_link"/>
+    <child  link="wrist_link"/>
+    <origin xyz="0 0 ${L2}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${palm_lo}" upper="${palm_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- ── wrist joint: roll about Z (wrist rotate) ───────────────────────────── -->
+  <xacro:box_link name="gripper_base_link" x="0.05" y="0.03" z="0.03" mat="so101_orange">
+    <origin xyz="0 0 0.015" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="wrist" type="revolute">
+    <parent link="wrist_link"/>
+    <child  link="gripper_base_link"/>
+    <origin xyz="0 0 ${L3}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${wrist_lo}" upper="${wrist_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- ── gripper joint: one moving finger (visual only) ─────────────────────── -->
+  <xacro:box_link name="gripper_finger_link" x="0.01" y="0.02" z="0.04" mat="so101_orange">
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </xacro:box_link>
+  <joint name="gripper" type="revolute">
+    <parent link="gripper_base_link"/>
+    <child  link="gripper_finger_link"/>
+    <origin xyz="0.02 0 0.03" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${gripper_lo}" upper="${gripper_hi}" effort="${effort}" velocity="${velocity}"/>
+  </joint>
+
+  <!-- Tool-centre-point frame for later phases (calibration, grasp targets). -->
+  <link name="tool0"/>
+  <joint name="tool0_fixed" type="fixed">
+    <parent link="gripper_base_link"/>
+    <child  link="tool0"/>
+    <origin xyz="0.04 0 0.03" rpy="0 0 0"/>
+  </joint>
+
+</robot>

@@ -49,7 +49,7 @@ pybind11_add_module(pykinematics bindings/py_kinematics.cpp)
 target_link_libraries(pykinematics PRIVATE kinematics_core)
 
 # Place the .pyd / .so directly into the Python package so `import pykinematics` works
-set(_PY_PKG_DIR "${CMAKE_SOURCE_DIR}/robot_sam2_app/robot_sam2_app")
+set(_PY_PKG_DIR "${CMAKE_SOURCE_DIR}/robot_sam2_app_v2/robot_sam2_app")
 set_target_properties(pykinematics PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY         "${_PY_PKG_DIR}"
   RUNTIME_OUTPUT_DIRECTORY         "${_PY_PKG_DIR}"

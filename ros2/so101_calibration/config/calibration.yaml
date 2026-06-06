@@ -1,0 +1,9 @@
+calibration_node:
+  ros__parameters:
+    # Path to the saved calibration JSON produced by collect_calibration_points.py
+    # or CameraRobotCalibration.save(). Leave empty to start uncalibrated.
+    calibration_file: ""   # TODO(hardware): set to your calibration JSON path
+
+    # Height of the table surface in robot base frame (metres).
+    # TODO(hardware): measure the actual table z for your setup.
+    table_z: 0.02

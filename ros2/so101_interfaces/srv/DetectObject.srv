@@ -1,0 +1,12 @@
+# Run Grounding DINO detection against the latest cached camera frame.
+string query          # natural-language description, e.g. "the red cup on the left"
+---
+bool success
+string message
+float32 x_min
+float32 y_min
+float32 x_max
+float32 y_max
+float32 confidence
+uint32 image_width
+uint32 image_height

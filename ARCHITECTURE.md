@@ -320,3 +320,38 @@ E:\MiniForge\envs\lerobot\python.exe
 ```
 
 Key packages: `torch`, `sam2`, `rfdetr`, `opencv-python`, `mediapipe`, `pyzmq`, `msgpack`, `pyserial`, `pybullet`
+
+---
+
+## ROS2 Jazzy layer (`ros2/`)
+
+A completed multi-package ROS2 Jazzy (Ubuntu 24.04) stack lives under `ros2/`.
+Existing modules are **wrapped** as nodes, not rewritten. All phases are
+implemented: RViz, driver, cameras/sensors, AI perception, calibration, task
+planner, and Gazebo. See `ros2/README.md` for build/run instructions.
+
+**All 7 phases implemented** (see `ros2/README.md` for build/run instructions):
+
+| Phase | Package | Status |
+|-------|---------|--------|
+| 1 | `so101_description` + `so101_bringup` | RViz placeholder URDF, display.launch.py |
+| 2 | `so101_driver` | `driver_node` wrapping `make_hardware()`, daemon+feetech backends |
+| 3–4 | `so101_perception` | Camera nodes, VL53 wrapper, Grounding DINO, SAM2+CSRT |
+| 5 | `so101_calibration` | Homography pixel→robot service |
+| 6 | `so101_task_planner` | Pick-and-place FSM, /start_task + /abort_task services |
+| 7 | `so101_gazebo` | Gazebo Harmonic world + launch |
+
+**ROS2 package roles:**
+
+| Package | Purpose |
+|---------|---------|
+| `ros2/so101_description` | URDF/xacro + RViz config. Ships a minimal **placeholder** URDF (boxes/cylinders, no meshes) whose 6 revolute joints match `MOTOR_NAMES` (`base, shoulder, elbow, palm, wrist, gripper`). Link lengths from `robot_system/kinematics/geometry.py`; limits derived from `config.py` tick ranges. Official SO-ARM101 URDF can be dropped in via `urdf/FETCH_OFFICIAL_URDF.md` (`use_placeholder:=false`). |
+| `ros2/so101_bringup` | Launch files for display, hardware, perception, calibration, task planning, and Gazebo flows. |
+
+Build & run: `colcon build --symlink-install` then
+`ros2 launch so101_bringup hardware.launch.py dry_run:=false backend:=daemon`
+for RViz + live arm, or `ros2 launch so101_bringup full_stack.launch.py` for all
+nodes.
+
+> Distinct from the removed legacy ROS2 **Humble** package, which wrapped the v1
+> app and was superseded by `ros2/`.
