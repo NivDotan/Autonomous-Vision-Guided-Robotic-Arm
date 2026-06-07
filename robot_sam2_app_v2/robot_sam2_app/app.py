@@ -112,9 +112,15 @@ class RobotApp:
             self.vl53.connect()
         self.hardware.connect()
         self.state.home = self.hardware.load_home(cfg.HOME_POSITION_PATH)
-        if self.state.home:
+        if not self.state.home:
+            print(f"[setup] WARNING: no home position loaded from {cfg.HOME_POSITION_PATH} — arm will not home.")
+        elif not self.hardware.connected:
+            print("[setup] WARNING: hardware not connected — skipping go-home. "
+                  "Is the motor daemon running on the right port?")
+        else:
             self.state.set_curr_and_target(home_ticks_to_state(self.state.home))
             from .go_home_util import go_home
+            print("[setup] Homing arm to start position…")
             go_home(self.hardware, self.state.home)
         self._start_sim()
         self._start_realsense()

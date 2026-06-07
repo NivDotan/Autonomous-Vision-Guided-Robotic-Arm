@@ -149,8 +149,15 @@ VL53_ENABLED          = True   # Set False to skip sensor init
 VL53_BAUD             = 115200
 
 def _find_vl53_port() -> str:
+    # IMPORTANT: only scan /dev/ttyUSB* (the ESP32 is a USB-UART adapter).
+    # NEVER scan /dev/ttyACM* — that is the SO-101 arm, and the motor daemon
+    # holds it open at 1 Mbaud. Opening it here at 115200 reconfigures the shared
+    # tty's baud rate, so the daemon's commands stop reaching the servos and the
+    # arm silently stops moving (while RViz still follows the commanded ticks).
     import glob, serial, time as _time
-    for port in sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")):
+    for port in sorted(glob.glob("/dev/ttyUSB*")):
+        if port == PORT:          # never touch the arm's port
+            continue
         try:
             s = serial.Serial(port, VL53_BAUD, timeout=0.5)
             _time.sleep(0.3)

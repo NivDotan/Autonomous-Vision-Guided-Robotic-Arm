@@ -64,7 +64,7 @@ def generate_launch_description():
 
     description_pkg  = FindPackageShare('so101_description')
     default_xacro    = PathJoinSubstitution([description_pkg, 'urdf', 'so101_arm.urdf.xacro'])
-    rviz_config      = PathJoinSubstitution([description_pkg, 'rviz', 'display.rviz'])
+    rviz_config      = PathJoinSubstitution([FindPackageShare('so101_bringup'), 'rviz', 'so101.rviz'])
 
     robot_description = ParameterValue(
         Command([FindExecutable(name='xacro'), ' ', urdf_file,
@@ -90,7 +90,7 @@ def generate_launch_description():
                               description='Path to SAM2 .pt checkpoint'),
         DeclareLaunchArgument('calibration_file',  default_value='',
                               description='Path to calibration JSON'),
-        DeclareLaunchArgument('use_official_names', default_value='false',
+        DeclareLaunchArgument('use_official_names', default_value='true',
                               description='Publish /joint_states with official joint names'),
 
         # ── Phase 1: robot visualisation ─────────────────────────────────────
@@ -109,7 +109,8 @@ def generate_launch_description():
 
         # ── Phase 2: driver ───────────────────────────────────────────────────
         _inc('so101_driver', 'driver.launch.py',
-             dry_run=dry_run, backend=backend, serial_port=port),
+             dry_run=dry_run, backend=backend, serial_port=port,
+             use_official_names=use_official),
 
         # ── Phase 3+4: perception ─────────────────────────────────────────────
         _inc('so101_perception', 'perception_ai.launch.py',

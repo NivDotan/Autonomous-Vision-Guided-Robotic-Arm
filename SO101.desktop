@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SO-101 Robot
+Comment=Launch motor daemon + vision app + ROS2/RViz
+Exec=bash -c "cd /home/niv/so101_ws/src/Autonomous-Vision-Guided-Robotic-Arm && ./start_robot_linux.sh"
+Icon=input-tablet
+Terminal=false
+Categories=Robotics;Development;

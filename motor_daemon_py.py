@@ -92,6 +92,7 @@ class MotorDaemon:
         self._curr_ticks = [2048] * 6
         self._lock     = threading.Lock()
         self._pub_sock = None
+        self._torque_asserted = False
 
     def connect(self) -> bool:
         try:
@@ -110,9 +111,17 @@ class MotorDaemon:
             _sync_write(self._ser, REG_GOAL_POSITION,
                         list(zip(MOTOR_IDS, self._curr_ticks)))
             # Enable torque on all motors — without this, goal writes do nothing.
+            # Read the register back to VERIFY it actually took (1 = on).
+            states = {}
             for mid in MOTOR_IDS:
                 _write(self._ser, mid, REG_TORQUE_ENABLE, 1, n=1)
-            print("[daemon] Torque enabled on all 6 motors.")
+                time.sleep(0.01)
+                states[mid] = _read(self._ser, mid, REG_TORQUE_ENABLE, 1)
+            print(f"[daemon] Torque enable read-back (1=on): {states}")
+            if any(v != 1 for v in states.values()):
+                print("[daemon] WARNING: torque NOT confirmed on all motors — arm may not move!")
+            else:
+                print("[daemon] Torque confirmed ON for all 6 motors.")
             return True
         except Exception as e:
             print(f"[daemon] Serial connect error: {e}")
@@ -151,7 +160,13 @@ class MotorDaemon:
     def run(self):
         ctx  = zmq.Context()
         sock = ctx.socket(zmq.REP)
-        sock.bind(f"tcp://*:{self._zmq_port}")
+        try:
+            sock.bind(f"tcp://*:{self._zmq_port}")
+        except zmq.error.ZMQError as e:
+            print(f"[daemon] ERROR: cannot bind port {self._zmq_port} ({e}).")
+            print("[daemon] A stale daemon is probably still running. Kill it with:")
+            print("[daemon]     pkill -f motor_daemon_py.py")
+            sys.exit(1)
         print(f"[daemon] ZMQ REQ/REP on tcp://localhost:{self._zmq_port}")
 
         if self._pub_port:
@@ -176,6 +191,13 @@ class MotorDaemon:
             elif cmd == 0x01:  # WRITE_TICKS
                 tl = req.get('ticks') or req.get(b'ticks', [])
                 if tl and self._ser:
+                    # Belt-and-suspenders: re-assert torque on the very first write,
+                    # in case the servos were left torque-off by a previous session.
+                    if not self._torque_asserted:
+                        for mid in MOTOR_IDS:
+                            _write(self._ser, mid, REG_TORQUE_ENABLE, 1, n=1)
+                        self._torque_asserted = True
+                        print("[daemon] First WRITE received — torque re-asserted.")
                     pairs = list(zip(MOTOR_IDS, (int(t) for t in tl)))
                     _sync_write(self._ser, REG_GOAL_POSITION, pairs)
                     with self._lock:

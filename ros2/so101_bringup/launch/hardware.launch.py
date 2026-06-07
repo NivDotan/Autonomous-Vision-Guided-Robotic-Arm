@@ -24,7 +24,8 @@ def generate_launch_description():
 
     description_pkg = FindPackageShare('so101_description')
     xacro_file  = PathJoinSubstitution([description_pkg, 'urdf', 'so101_arm.urdf.xacro'])
-    rviz_config = PathJoinSubstitution([description_pkg, 'rviz', 'display.rviz'])
+    # Clean config shipped by so101_bringup (TF labels off, RobotModel from /robot_description).
+    rviz_config = PathJoinSubstitution([FindPackageShare('so101_bringup'), 'rviz', 'so101.rviz'])
 
     robot_description = ParameterValue(
         Command([FindExecutable(name='xacro'), ' ', xacro_file, ' variant:=follower']),
@@ -64,13 +65,16 @@ def generate_launch_description():
             condition=IfCondition(dry_run),
         ),
 
-        # Phase 2: driver
+        # Phase 2: driver — publish /joint_states with OFFICIAL joint names so they
+        # match the SO-101 URDF (otherwise RViz can't place the links → all stack
+        # at the origin with the giant overlapping labels you saw).
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(driver_launch),
             launch_arguments={
-                'dry_run':     dry_run,
-                'backend':     backend,
-                'serial_port': serial_port,
+                'dry_run':            dry_run,
+                'backend':            backend,
+                'serial_port':        serial_port,
+                'use_official_names': 'true',
             }.items(),
         ),
     ])

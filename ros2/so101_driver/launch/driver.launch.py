@@ -28,6 +28,8 @@ def generate_launch_description():
                               description='"daemon" or "feetech"'),
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyACM0',
                               description='Serial port for feetech backend'),
+        DeclareLaunchArgument('use_official_names', default_value='false',
+                              description='Publish /joint_states with official SO-101 joint names'),
 
         Node(
             package='so101_driver',
@@ -37,9 +39,10 @@ def generate_launch_description():
             parameters=[
                 params_file,
                 {
-                    'dry_run':     LaunchConfiguration('dry_run'),
-                    'backend':     LaunchConfiguration('backend'),
-                    'serial_port': LaunchConfiguration('serial_port'),
+                    'dry_run':            LaunchConfiguration('dry_run'),
+                    'backend':            LaunchConfiguration('backend'),
+                    'serial_port':        LaunchConfiguration('serial_port'),
+                    'use_official_names': LaunchConfiguration('use_official_names'),
                 },
             ],
         ),

@@ -163,29 +163,47 @@ class DaemonHardware:
     def connected(self) -> bool:
         return self._socket is not None
 
-    def connect(self) -> bool:
+    def connect(self, retries: int = 10) -> bool:
+        import time as _time
         try:
             import zmq
             import msgpack
-            self._zmq     = zmq
-            self._msgpack = msgpack
-            self._ctx    = zmq.Context()
-            self._socket = self._ctx.socket(zmq.REQ)
-            self._socket.setsockopt(zmq.RCVTIMEO, 100)   # 100ms timeout
-            self._socket.setsockopt(zmq.LINGER, 0)
-            self._socket.connect(self._endpoint)
-            # Ping with STATUS command.
-            self._socket.send(msgpack.packb({"cmd": 0xFF}))
-            resp = msgpack.unpackb(self._socket.recv(), raw=False)
-            if resp.get("status", resp.get(b"status", 1)) != 0:
-                raise RuntimeError("daemon STATUS response not OK")
-            print(f"DaemonHardware connected to {self._endpoint}")
-            return True
         except Exception as exc:
-            print(f"DaemonHardware unavailable: {exc}")
-            self._socket = None
-            self._ctx    = None
+            print(f"DaemonHardware unavailable (missing pyzmq/msgpack): {exc}")
             return False
+
+        self._zmq     = zmq
+        self._msgpack = msgpack
+        # Retry the STATUS ping: when launched together with the daemon (and the
+        # ROS2 driver), the daemon may not be bound yet, or be briefly busy.
+        for attempt in range(1, retries + 1):
+            try:
+                self._ctx    = zmq.Context()
+                self._socket = self._ctx.socket(zmq.REQ)
+                self._socket.setsockopt(zmq.RCVTIMEO, 1000)   # 1 s per attempt
+                self._socket.setsockopt(zmq.LINGER, 0)
+                self._socket.connect(self._endpoint)
+                self._socket.send(msgpack.packb({"cmd": 0xFF}))
+                resp = msgpack.unpackb(self._socket.recv(), raw=False)
+                if resp.get("status", resp.get(b"status", 1)) != 0:
+                    raise RuntimeError("daemon STATUS response not OK")
+                print(f"DaemonHardware connected to {self._endpoint}")
+                return True
+            except Exception as exc:
+                # Tear down this socket/context and retry.
+                try:
+                    self._socket.close()
+                    self._ctx.term()
+                except Exception:
+                    pass
+                self._socket = None
+                self._ctx    = None
+                if attempt < retries:
+                    print(f"DaemonHardware: waiting for daemon ({attempt}/{retries})…")
+                    _time.sleep(0.5)
+                else:
+                    print(f"DaemonHardware unavailable after {retries} attempts: {exc}")
+        return False
 
     def disconnect(self) -> None:
         if self._socket is not None:

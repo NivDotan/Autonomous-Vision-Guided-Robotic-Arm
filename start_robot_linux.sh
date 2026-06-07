@@ -19,6 +19,13 @@ fi
 
 echo "Launching SO-101 robot system..."
 
+# ── Kill any stale daemon / app from a previous run ──────────────────────────
+# A leftover daemon keeps /dev/ttyACM0 + port 5555, so the new daemon can't bind
+# and the app silently talks to the old (no-torque) one → arm won't move.
+pkill -f motor_daemon_py.py     2>/dev/null && echo "Stopped a stale motor daemon."
+pkill -f robot_sam2_app.main    2>/dev/null && echo "Stopped a stale app."
+sleep 1
+
 # ── Terminal 1: Motor Daemon ──────────────────────────────────────────────────
 gnome-terminal --title="1 · Motor Daemon" -- bash -c "
     echo '=== Motor Daemon (replaces motor_daemon.exe) ==='
