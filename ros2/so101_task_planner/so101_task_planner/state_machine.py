@@ -196,6 +196,7 @@ class StateMachine:
                 ps.grip_frames       = 0
                 self._log('[FSM] Gripper closing')
             else:
+                ps.target['gripper'] = GRIPPER_CLOSE
                 ps.grip_frames += 1
                 if ps.grip_frames >= 10:  # GRIP_LOAD_MIN_FRAMES
                     self.transition(S.VERIFY_GRASP)
@@ -203,7 +204,8 @@ class StateMachine:
         elif s == S.VERIFY_GRASP:
             # Gripper current/load is checked by the node; it calls
             # on_grip_success() / on_grip_miss() based on hardware feedback.
-            pass
+            ps.target['gripper'] = GRIPPER_CLOSE
+            ps.grip_frames += 1
 
         elif s == S.MOVE_TO_DROP:
             if not ps.returning_home:

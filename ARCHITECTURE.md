@@ -355,3 +355,48 @@ nodes.
 
 > Distinct from the removed legacy ROS2 **Humble** package, which wrapped the v1
 > app and was superseded by `ros2/`.
+
+---
+
+## Linux runtime details
+
+The Windows daemon (`motor_daemon.exe`) is replaced on Linux by **`motor_daemon_py.py`**
+(pure pyserial + ZMQ). Behaviour and hard-won fixes:
+
+### Motor daemon (`motor_daemon_py.py`)
+- ZMQ **REQ/REP on :5555** (same protocol as the C++ daemon) **plus PUB on :5556**.
+  The app drives via REQ/REP; the ROS2 `so101_driver` subscribes to the PUB
+  broadcast for read-only state, so RViz mirrors the arm while the app drives it.
+- On connect: sets goal = current pose, **enables torque on all 6 motors and reads
+  the register back to verify**, then re-asserts torque on the first WRITE. Torque
+  off ⇒ goal-position writes are silently ignored (arm won't move).
+- Exits with a clear error if `:5555` is already bound (stale daemon).
+- The PUB broadcast carries **commanded** ticks, so RViz follows commands — it is
+  not a readback of the physical encoders.
+
+### Serial port hygiene (critical)
+The arm (`/dev/ttyACM0`, 1 Mbaud) and the ESP32/VL53 (`/dev/ttyUSB0`, 115200) are
+distinct. `config._find_vl53_port()` scans **only `/dev/ttyUSB*`** and skips the arm
+`PORT`. Opening the arm's port at 115200 reconfigures the shared tty's baud, so the
+daemon's 1 Mbaud commands become garbage and **the arm silently stops moving while
+RViz still reaches the target** (it follows commanded ticks). This was the root
+cause of a long "arm won't move" debug session.
+
+### Cameras (`config.find_camera_device` + `app._open_camera`)
+- Resolved by **stable v4l2 product name** (`MAIN_CAMERA_NAME`, `BASE_CAMERA_NAME`),
+  not fixed indices, which reshuffle across reboots. `find_camera_device` reads
+  `v4l2-ctl --list-devices` stdout regardless of its (often non-zero) exit code.
+- Opened with the explicit **`cv2.CAP_V4L2` backend + MJPG + 640×480**. Two USB
+  cameras on one controller exceed USB2 bandwidth in raw YUYV
+  (`ioctl(VIDIOC_QBUF): Bad file descriptor`); MJPG + the V4L2 backend fix it.
+
+### ROS2 / RViz on Ubuntu 24.04 (snap conflict)
+Always `unset LD_LIBRARY_PATH && source /opt/ros/jazzy/setup.bash` before `ros2`,
+or rviz2 / joint_state_publisher_gui die with a snap `libpthread` symbol error.
+The `so101_driver` publishes `/joint_states` with **official** SO-101 joint names
+(`use_official_names:=true`) so they match the official URDF; otherwise links stack
+at the origin in RViz. A clean config ships at `ros2/so101_bringup/rviz/so101.rviz`.
+
+### mediapipe
+≥ 0.10.35 removed `mp.solutions`; HAND mode (M key) is therefore disabled on Linux.
+The app guards this and runs everything else normally.

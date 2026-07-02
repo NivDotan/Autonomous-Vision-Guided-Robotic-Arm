@@ -1,0 +1,44 @@
+{
+  "base": {
+    "joint": "base_link_to_link1",
+    "motor_id": 1,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": 0.0
+  },
+  "shoulder": {
+    "joint": "link1_to_link2",
+    "motor_id": 2,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": -1.5707963267948966
+  },
+  "elbow": {
+    "joint": "link2_to_link3",
+    "motor_id": 3,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": 1.5707963267948966
+  },
+  "palm": {
+    "joint": "link3_to_link4",
+    "motor_id": 4,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": 0.0
+  },
+  "wrist": {
+    "joint": "link4_to_link5",
+    "motor_id": 5,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": -1.5707963267948966
+  },
+  "gripper": {
+    "joint": "right_clamp",
+    "motor_id": 6,
+    "tick_offset": 2048,
+    "sign": 1.0,
+    "joint_offset": 0.0
+  }
+}

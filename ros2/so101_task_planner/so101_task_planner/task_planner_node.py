@@ -96,6 +96,9 @@ class TaskPlannerNode(Node):
         self._curr_stable_w     = self.get_parameter('current_stable_w').value
         self._curr_stable_n     = self.get_parameter('current_stable_n').value
         self._current_buf: deque[float] = deque(maxlen=10)
+        self._detect_pending    = False
+        self._track_pending     = False
+        self._pending_bbox      = None
 
         # ── publishers ─────────────────────────────────────────────────────────
         self._cmd_pub   = self.create_publisher(JointState, '/joint_command', 10)
@@ -154,6 +157,9 @@ class TaskPlannerNode(Node):
 
     def _start_srv(self, req: StartTask.Request, resp: StartTask.Response):
         if self._sm.start_task(req.pick_query, req.place_query):
+            self._detect_pending = False
+            self._track_pending = False
+            self._pending_bbox = None
             self._trigger_detection(req.pick_query)
             resp.success = True
             resp.message = f"Task started: pick='{req.pick_query}' place='{req.place_query}'"
@@ -171,15 +177,19 @@ class TaskPlannerNode(Node):
     # ── async service calls ────────────────────────────────────────────────────
 
     def _trigger_detection(self, query: str) -> None:
+        if self._detect_pending:
+            return
         if not self._detect_cli.service_is_ready():
-            self.get_logger().warning('/detect_object service not available yet.')
+            self.get_logger().debug('/detect_object service not available yet.')
             return
         req       = DetectObject.Request()
         req.query = query
         future    = self._detect_cli.call_async(req)
+        self._detect_pending = True
         future.add_done_callback(self._detection_done_cb)
 
     def _detection_done_cb(self, future) -> None:
+        self._detect_pending = False
         try:
             resp = future.result()
         except Exception as exc:
@@ -190,29 +200,48 @@ class TaskPlannerNode(Node):
             self._sm.transition(S.RETRY_OR_DONE)
             return
         self.get_logger().info(f'Detected: {resp.message}')
+        if self._ps.range_mm is None:
+            self.get_logger().info('[VL53 after detection] no /range sample yet')
+        else:
+            self.get_logger().info(f'[VL53 after detection] range={self._ps.range_mm:.0f}mm')
+        self._ps.target_x = (resp.x_min + resp.x_max) / 2.0
+        self._ps.target_y = (resp.y_min + resp.y_max) / 2.0
+        self._ps.has_target = True
         self._sm.on_detection(resp.x_min, resp.y_min, resp.x_max, resp.y_max)
-        # Immediately initialize tracking
+        self._pending_bbox = (resp.x_min, resp.y_min, resp.x_max, resp.y_max)
+        self._trigger_tracking()
+
+    def _trigger_tracking(self) -> None:
+        if self._track_pending or self._pending_bbox is None:
+            return
         if self._track_cli.service_is_ready():
+            x_min, y_min, x_max, y_max = self._pending_bbox
             treq          = InitializeTracking.Request()
-            treq.x_min    = resp.x_min
-            treq.y_min    = resp.y_min
-            treq.x_max    = resp.x_max
-            treq.y_max    = resp.y_max
+            treq.x_min    = x_min
+            treq.y_min    = y_min
+            treq.x_max    = x_max
+            treq.y_max    = y_max
             treq.camera   = 'gripper'
             tfuture       = self._track_cli.call_async(treq)
+            self._track_pending = True
             tfuture.add_done_callback(self._tracking_done_cb)
 
     def _tracking_done_cb(self, future) -> None:
+        self._track_pending = False
         try:
             resp = future.result()
         except Exception as exc:
             self.get_logger().error(f'InitializeTracking call failed: {exc}')
             return
         if resp.success:
+            self._pending_bbox = None
             self._sm.on_tracking_ready()
         else:
-            self.get_logger().warning(f'Tracking init failed: {resp.message}')
-            self._sm.transition(S.RETRY_OR_DONE)
+            self.get_logger().warning(
+                f'Tracking init failed: {resp.message}; using detector bbox center as fixed target'
+            )
+            self._pending_bbox = None
+            self._sm.on_tracking_ready()
 
     # ── main tick ──────────────────────────────────────────────────────────────
 
@@ -220,6 +249,11 @@ class TaskPlannerNode(Node):
         if not _IFACES:
             return
         ps = self._ps
+
+        if ps.state == S.SCAN_OBJECTS and ps.pick_query:
+            self._trigger_detection(ps.pick_query)
+        elif ps.state == S.SELECT_OBJECT:
+            self._trigger_tracking()
 
         # ── gripper catch detection (in GRASP / VERIFY_GRASP) ─────────────────
         if ps.state in (S.GRASP, S.VERIFY_GRASP) and ps.gripper_closed:

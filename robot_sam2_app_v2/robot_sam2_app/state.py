@@ -35,6 +35,12 @@ class RobotState:
 
     place_mode: bool = False       # True while approaching / placing at target location
 
+    # ── Pick / pick-and-place mission sequencer (P key) ───────────────────────
+    mission: str = "idle"          # idle → locate_place → pick → to_place → place
+    pick_query: str = ""
+    place_query: str = ""          # "" = pick-only
+    place_coords: dict | None = None  # snapshot of curr ticks where place target was found
+
     # ── Grip retry state machine ──────────────────────────────────────────────
     retreat_mode: bool = False
     pre_approach_ticks: dict = field(default_factory=dict)

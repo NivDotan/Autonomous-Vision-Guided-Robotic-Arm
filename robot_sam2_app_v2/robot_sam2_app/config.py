@@ -121,7 +121,7 @@ SCAN_STEP_TICKS     = 150   # base ticks per scan step
 SCAN_MAX_STEPS      = 4     # steps each direction (±4 × 150 = ±600 ticks max)
 SCAN_MOVE_DURATION  = 1.2   # seconds for each scan move (parabolic ease-in/ease-out)
 SCAN_DWELL_TIME     = 3.0   # seconds to hold position after move before capturing
-PLACE_DIST_MM       = 200   # VL53 distance to open gripper (place phase)
+PLACE_DIST_MM       = 150   # VL53 distance to open gripper (place phase)
 
 SIM_INSTANT_WHEN_JOG = True
 #SIM_CALIBRATION_PATH = ASSETS_DIR / "joint_sim_calibration.json"
@@ -177,7 +177,7 @@ VL53_LOCK_DIST_MM        = 130  # Below this: freeze base/shoulder/elbow, only p
 VL53_GRIP_DIST_MM        = 110   # Trigger pre-grasp when avg of last 3 readings ≤ this (mm)
 VL53_STABLE_WINDOW_MM    = 15   # Max spread across last 3 readings to count as "stable"
 VL53_MAX_JUMP_MM         = 30   # Max change between consecutive readings (rejects noise/occlusion)
-VL53_PREGRASP_PALM_DELTA = -50  # Ticks to move palm before closing gripper
+VL53_PREGRASP_PALM_DELTA = -350  # Ticks to move palm before closing gripper
 VL53_MAX_APPROACH_MM     = 400  # Distance at which elbow drive is at full power (err_area=1.0)
 VL53_SHOULDER_RATIO      = 0.3  # How much shoulder moves relative to elbow in locked mode (0=off, 1=equal)
 

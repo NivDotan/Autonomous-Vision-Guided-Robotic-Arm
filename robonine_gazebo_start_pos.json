@@ -1,0 +1,9 @@
+{
+  "base_link_to_link1": 1.349040,
+  "link1_to_link2": -0.833160,
+  "link2_to_link3": 1.693380,
+  "link3_to_link4": -1.415040,
+  "link4_to_link5": -0.162320,
+  "right_clamp": 0.000000,
+  "left_clamp": 0.000000
+}

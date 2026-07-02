@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<!--
+  Gazebo-ready SO-101 (follower) model.
+
+  Reuses the official so101_description macros for the links/visuals/collisions,
+  anchors the base to a world link, and adds a gz_ros2_control system so the arm
+  is actually controllable in Gazebo Harmonic. Self-contained: does NOT modify
+  the upstream so101_description package.
+
+  Prerequisite: sudo apt install ros-jazzy-gz-ros2-control
+-->
+<robot name="so101_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="controllers_file"
+             default="$(find so101_gazebo)/config/gz_controllers.yaml"/>
+  <xacro:property name="mesh_dir" value="package://so101_description/meshes"/>
+
+  <!-- Official description macros -->
+  <xacro:include filename="$(find so101_description)/urdf/so101_macros.xacro"/>
+  <xacro:include filename="$(find so101_description)/urdf/so101_materials.xacro"/>
+  <xacro:include filename="$(find so101_description)/urdf/so101_arm_common.xacro"/>
+  <xacro:include filename="$(find so101_description)/urdf/end_effectors/so101_ee_common.xacro"/>
+  <xacro:include filename="$(find so101_description)/urdf/end_effectors/so101_ee_follower.xacro"/>
+
+  <!-- Build the arm + follower gripper (same calls as the upstream top-level) -->
+  <xacro:so101_materials/>
+  <xacro:so101_arm_common  mesh_dir="${mesh_dir}" add_transmissions="false"/>
+  <xacro:so101_ee_follower mesh_dir="${mesh_dir}" add_transmissions="false"/>
+
+  <!-- Anchor the base to the world so the arm doesn't fall over in physics -->
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child  link="base_link"/>
+    <!-- Sit the arm ON the table (top at z=0.75), near the front edge facing the
+         pick/drop objects (~x=0.35), so it's both visible and reachable. -->
+    <origin xyz="0.1 0 0.75" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ── ros2_control via the Gazebo Sim system plugin ───────────────────────-->
+  <xacro:macro name="gz_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="GzSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <xacro:gz_joint name="shoulder_pan"/>
+    <xacro:gz_joint name="shoulder_lift"/>
+    <xacro:gz_joint name="elbow_flex"/>
+    <xacro:gz_joint name="wrist_flex"/>
+    <xacro:gz_joint name="wrist_roll"/>
+    <xacro:gz_joint name="gripper"/>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg controllers_file)</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- ── Simulated gripper camera ─────────────────────────────────────────────
+       A camera fixed to the gripper that renders the scene, so the real
+       perception nodes (Grounding DINO / SAM2) can run on /gripper_camera/image_raw
+       in sim. TODO(tune): adjust the joint rpy below so the camera looks out
+       along the gripper's approach direction (depends on your mounting). -->
+  <link name="gripper_camera_link"/>
+  <joint name="gripper_camera_joint" type="fixed">
+    <parent link="gripper_frame_link"/>
+    <child  link="gripper_camera_link"/>
+    <!-- rpy = roll pitch yaw. Camera looks along its +X. The MIDDLE number
+         pitches it down toward the table. If it looks the WRONG way after this,
+         flip the sign (1.5708 → -1.5708) or try roll (first number). -->
+    <origin xyz="0.0 0.0 0.03" rpy="0 1.5708 0"/>
+  </joint>
+
+  <gazebo reference="gripper_camera_link">
+    <sensor name="gripper_camera" type="camera">
+      <update_rate>30</update_rate>
+      <topic>gripper_camera/image_raw</topic>
+      <camera>
+        <horizontal_fov>1.05</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.02</near><far>10.0</far></clip>
+      </camera>
+      <always_on>1</always_on>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
+</robot>

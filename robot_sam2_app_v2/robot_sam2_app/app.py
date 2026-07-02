@@ -16,7 +16,7 @@ from .hardware import make_hardware, home_ticks_to_state
 from .simulation import PyBulletArmSim
 from .state import RobotState
 from .tracking import ObjectTracker
-from .utils import clamp, step_toward
+from .utils import clamp, step_toward, parse_pick_place_command
 from .vision.sam2_segmenter import SAM2Segmenter
 from .vision.vqa_detector import VQADetector
 
@@ -158,6 +158,7 @@ class RobotApp:
             self.close()
             return
         print("Controls: S motors, M mode, A approach, Space grab/release, U auto cup, T typed target")
+        print("          P: pick-and-place command (e.g. 'pick the cup and place it in the box')")
         print("          R reset home, L log start/stop, F free-arm mode, Z/X manual palm, C auto palm, Q quit")
         print("          Arrow keys: Left/Right = rotate base, Up/Down = shoulder (works before S)")
         print("          B: toggle base-camera motor control  (click Base Camera window to track)")
@@ -286,6 +287,11 @@ class RobotApp:
                 self.tracker.reset()
                 time.sleep(0.5)
                 self._go_home()
+                # Mission complete — clear sequencer state.
+                self.state.mission      = "idle"
+                self.state.place_coords = None
+                self.state.place_query  = ""
+                print("[MISSION] place complete.")
             return
 
         if dist_mm is None or not self.state.approach_mode or self.state.gripper_closed:
@@ -635,13 +641,20 @@ class RobotApp:
             self.state.returning_home = False
             self.state.pre_grasp_palm = False
             self.state.place_mode = False
+            self.state.mission = "idle"
+            self.state.place_query = ""
+            self.state.place_coords = None
             self.tracker.reset()
             self._go_home()
         elif key == ord("u"):
             self._request_auto_target(self.auto_target_name)
         elif key == ord("t"):
             query = input(f"Describe object [{self.auto_target_name}]: ").strip()
-            self._request_auto_target(query or self.auto_target_name)
+            query = query or self.auto_target_name
+            print(f"[DEBUG] T command → PICK: '{query}'  (single object, no place)")
+            self._request_auto_target(query)
+        elif key == ord("p"):
+            self._handle_pick_place_command()
         elif key == ord("z"):
             self.state.auto_palm = False
             self.state.target["palm"] = int(clamp(self.state.target["palm"] + 50, cfg.PALM_MIN, cfg.PALM_MAX))
@@ -691,17 +704,26 @@ class RobotApp:
         if not arrived:
             return
         self.state.returning_home = False
-        print("\n[PLACE] Object secured at home. Where do you want to place it?")
-        query = input("Place target description (blank = release here): ").strip()
-        if not query:
-            self.state.gripper_closed    = False
-            self.state.target["gripper"] = cfg.GRIPPER_OPEN
+
+        # Pick-and-place mission: go to the saved place coords and place there.
+        if self.state.place_query and self.state.place_coords:
+            print(f"[PLACE] object secured — returning to saved place coords for "
+                  f"'{self.state.place_query}'")
+            self.state.mission = "to_place"
+            self._go_to_ticks(self.state.place_coords)
+            self.state.mission    = "place"
+            self.state.place_mode = True
+            self._request_auto_target(self.state.place_query)
+            if not self.state.approach_mode:
+                self.state.place_mode = False
+                self.state.mission    = "idle"
+                print("[PLACE] target not re-acquired — holding object. "
+                      "Press P to retry or Space to release.")
             return
-        self.state.place_mode = True
-        self._request_auto_target(query)
-        if not self.state.approach_mode:
-            self.state.place_mode = False
-            print("[PLACE] Target not found — holding object. Press T to retry or Space to release.")
+
+        # Pick-only mission: hold the object at home and stop.
+        self.state.mission = "idle"
+        print("[MISSION] pick complete — holding object at home. Press Space to release.")
 
     def _request_auto_target(self, query: str) -> None:
         bbox = self.detector.detect_bbox(self.last_frame_bgr, query)
@@ -732,6 +754,79 @@ class RobotApp:
         self.state.current_aim_y      = cfg.APPROACH_AIM_Y
         self.base_cam_active          = False
         print("Approach started (auto)")
+
+    # ── Pick / pick-and-place mission (P key) ─────────────────────────────────
+    def _handle_pick_place_command(self) -> None:
+        """Entry point for the single-phrase mission.
+
+        "pick X"                       → pick only (hold at home, stop)
+        "pick X and place it in Y"     → locate Y first, pick X, then place at Y
+        """
+        text = input("Pick & place command: ").strip()
+        if not text:
+            return
+        pick_q, place_q = parse_pick_place_command(text)
+        print("[DEBUG] command parsed:")
+        print(f"        raw   : '{text}'")
+        print(f"        PICK  : '{pick_q}'")
+        print(f"        PLACE : '{place_q}'" if place_q else "        PLACE : (none — pick only)")
+        if not pick_q:
+            print("[MISSION] Could not parse a pick object from the command.")
+            return
+        self.state.pick_query   = pick_q
+        self.state.place_query  = place_q or ""
+        self.state.place_coords = None
+
+        if place_q:
+            self.state.mission = "locate_place"
+            self._locate_place_target(place_q)
+        else:
+            print(f"[MISSION] pick-only: '{pick_q}'")
+            self.state.mission = "pick"
+            self._request_auto_target(pick_q)
+
+    def _locate_place_target(self, query: str) -> None:
+        """Find the place target with the gripper camera and save its joint coords,
+        then return to a neutral posture and start the pick."""
+        print(f"[LOCATE] scanning for place target '{query}' ...")
+        bbox = self.detector.detect_bbox(self.last_frame_bgr, query)
+        if bbox is None:
+            bbox = self._scan_for_target(query)
+        if bbox is None:
+            print(f"[LOCATE] place target '{query}' not found — aborting mission.")
+            self.state.mission = "idle"
+            return
+        # Snapshot the joint positions where the place target is visible.
+        self.state.place_coords = dict(self.state.curr)
+        print(f"[LOCATE] place target found — saved coords: {self.state.place_coords}")
+        # Return to a neutral posture, then pick.
+        self._go_home()
+        self.state.mission = "pick"
+        print(f"[MISSION] picking '{self.state.pick_query}' ...")
+        self._request_auto_target(self.state.pick_query)
+
+    def _go_to_ticks(self, named_ticks: dict, duration: float = 4.0) -> None:
+        """Smooth interpolated move of all joints to `named_ticks` (ease-in/out).
+        Mirrors go_home_util's easing without needing a home dict."""
+        import math
+        if not self.hardware.connected or not named_ticks:
+            return
+        start = dict(self.state.curr)
+        steps = max(10, int(duration * 25))
+        for i in range(1, steps + 1):
+            t = i / steps
+            eased = t * t * (3.0 - 2.0 * t)
+            tgt = {}
+            for name in cfg.MOTOR_NAMES:
+                a = start.get(name, self.state.curr[name])
+                b = int(named_ticks.get(name, a))
+                tgt[name] = int(a + (b - a) * eased)
+            self.state.curr.update(tgt)
+            self.state.target.update(tgt)
+            self.hardware.write_ticks(tgt)
+            time.sleep(duration / steps)
+        self.state.set_curr_and_target({n: int(named_ticks.get(n, self.state.curr[n]))
+                                        for n in cfg.MOTOR_NAMES})
 
     def _move_base_smooth(self, target: int, duration: float) -> None:
         """Move base motor with parabolic ease-in/ease-out over `duration` seconds."""

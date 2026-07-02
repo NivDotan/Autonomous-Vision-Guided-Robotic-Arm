@@ -37,16 +37,16 @@ def generate_launch_description():
 
     description_pkg = FindPackageShare("so101_description")
 
-    # Default: so101_arm.urdf.xacro from legalaspro official package, follower variant.
-    default_xacro = PathJoinSubstitution([description_pkg, "urdf", "so101_arm.urdf.xacro"])
+    # Default to the committed wrapper. It uses the placeholder model unless the
+    # official SO-101 URDF is installed and explicitly requested.
+    default_xacro = PathJoinSubstitution([description_pkg, "urdf", "so101.urdf.xacro"])
 
     urdf_file   = LaunchConfiguration("urdf_file")
     variant     = LaunchConfiguration("variant")
     rviz_config = PathJoinSubstitution([description_pkg, "rviz", "display.rviz"])
 
     robot_description = ParameterValue(
-        Command([FindExecutable(name="xacro"), " ", urdf_file,
-                 " variant:=", variant]),
+        Command([FindExecutable(name="xacro"), " ", urdf_file]),
         value_type=str,
     )
 

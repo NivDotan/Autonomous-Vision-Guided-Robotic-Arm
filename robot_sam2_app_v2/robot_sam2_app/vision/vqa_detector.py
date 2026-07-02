@@ -51,15 +51,29 @@ class VQADetector:
             )
             boxes  = results[0]["boxes"]
             scores = results[0]["scores"]
+
+            # ── DEBUG: show every candidate above 0.7 (label = query) ─────────
+            DEBUG_SCORE = 0.7
+            dbg = [(float(s), [int(v) for v in b.tolist()])
+                   for s, b in zip(scores.tolist(), boxes)
+                   if float(s) > DEBUG_SCORE]
+            dbg.sort(key=lambda x: x[0], reverse=True)
+            if dbg:
+                print(f"[VQA][debug] '{query}' — {len(dbg)} candidate(s) > {DEBUG_SCORE}:")
+                for s, (bx0, by0, bx1, by1) in dbg:
+                    print(f"           score={s:.2f}  box=({bx0},{by0},{bx1},{by1})")
+            else:
+                print(f"[VQA][debug] '{query}' — no candidate above {DEBUG_SCORE}")
+
             mask   = scores > 0.75
             boxes  = boxes[mask]
             scores = scores[mask]
             if len(boxes) == 0:
-                print(f"[VQA] '{query}' — nothing found")
+                print(f"[VQA] '{query}' — nothing found (none above 0.75)")
                 return None
             best = int(scores.argmax())
             x0, y0, x1, y1 = (int(v) for v in boxes[best].tolist())
-            print(f"[VQA] '{query}' → ({x0}, {y0}, {x1}, {y1})  score={scores[best]:.2f}")
+            print(f"[VQA] '{query}' → SELECTED ({x0}, {y0}, {x1}, {y1})  score={scores[best]:.2f}")
             return x0, y0, x1, y1
         except Exception as exc:
             print(f"[VQA] error: {exc}")

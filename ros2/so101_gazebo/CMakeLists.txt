@@ -4,7 +4,7 @@ project(so101_gazebo)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY launch worlds config
+  DIRECTORY launch worlds config urdf
   DESTINATION share/${PROJECT_NAME}
 )
 
